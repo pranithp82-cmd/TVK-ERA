@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { MobileAppShell } from './components/MobileAppShell';
 import { LoginScreen } from './components/LoginScreen';
 import { RegistrationScreen } from './components/RegistrationScreen';
@@ -23,8 +24,11 @@ const MainRouter = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainRouter />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <MainRouter />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
+

@@ -21,75 +21,93 @@ const STORAGE_KEYS = {
   OFFICERS: 'tvk_era_officers',
 };
 
+const safeStorage = {
+  get: (key, fallback) => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (!saved) return fallback;
+      return JSON.parse(saved);
+    } catch (e) {
+      console.warn(`[Storage] Failed to read ${key}:`, e);
+      return fallback;
+    }
+  },
+  getString: (key, fallback) => {
+    try {
+      return localStorage.getItem(key) || fallback;
+    } catch {
+      return fallback;
+    }
+  },
+  set: (key, value) => {
+    try {
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+    } catch (e) {
+      console.warn(`[Storage] Failed to write ${key}:`, e);
+      // QuotaExceededError fallback
+      if (key === STORAGE_KEYS.COMPLAINTS && Array.isArray(value)) {
+        try {
+          const trimmed = value.map(c => ({
+            ...c,
+            photoUrl: c.photoUrl && c.photoUrl.length > 50000 ? '' : c.photoUrl,
+            completionPhotoUrl: c.completionPhotoUrl && c.completionPhotoUrl.length > 50000 ? '' : c.completionPhotoUrl
+          }));
+          localStorage.setItem(key, JSON.stringify(trimmed));
+        } catch {
+          // Gracefully suppress quota errors without crashing React
+        }
+      }
+    }
+  },
+  remove: (key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  }
+};
+
 export const AppProvider = ({ children }) => {
   // 1. Language state ('ta' default or 'en')
   const [lang, setLang] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.LANG) || 'ta';
+    return safeStorage.getString(STORAGE_KEYS.LANG, 'ta');
   });
 
   // 2. Theme state ('light' or 'dark')
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.THEME) || 'light';
+    return safeStorage.getString(STORAGE_KEYS.THEME, 'light');
   });
 
   // 3. Role & User state
   // Roles: 'LOGIN' | 'REGISTER' | 'RESIDENT' | 'GRASSROOTS' | 'MLA'
   const [currentRole, setCurrentRole] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.ROLE) || 'RESIDENT';
+    return safeStorage.getString(STORAGE_KEYS.ROLE, 'RESIDENT');
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return DEMO_USERS[0]; // Default resident
+    return safeStorage.get(STORAGE_KEYS.USER, DEMO_USERS[0]);
   });
 
   // 4. Data lists with localStorage persistence
   const [complaints, setComplaints] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.COMPLAINTS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.filter(c => c.id !== 'GR-121-7104' && c.id !== 'GR-121-6540');
-      }
-    } catch {
-      // fallback
+    const saved = safeStorage.get(STORAGE_KEYS.COMPLAINTS, null);
+    if (saved && Array.isArray(saved)) {
+      return saved.filter(c => c && c.id !== 'GR-121-7104' && c.id !== 'GR-121-6540');
     }
     return SEED_COMPLAINTS;
   });
 
   const [residents, setResidents] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.RESIDENTS);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return SEED_RESIDENTS;
+    return safeStorage.get(STORAGE_KEYS.RESIDENTS, SEED_RESIDENTS);
   });
 
   const [directives, setDirectives] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.DIRECTIVES);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return SEED_DIRECTIVES;
+    return safeStorage.get(STORAGE_KEYS.DIRECTIVES, SEED_DIRECTIVES);
   });
 
   const [officers, setOfficers] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.OFFICERS);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return SEED_OFFICERS;
+    return safeStorage.get(STORAGE_KEYS.OFFICERS, SEED_OFFICERS);
   });
 
   // 5. Toast Notifications
@@ -102,41 +120,41 @@ export const AppProvider = ({ children }) => {
     }, 3200);
   };
 
-  // Sync state to localStorage
+  // Sync state to localStorage safely
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.LANG, lang);
+    safeStorage.set(STORAGE_KEYS.LANG, lang);
   }, [lang]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.THEME, theme);
+    safeStorage.set(STORAGE_KEYS.THEME, theme);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ROLE, currentRole);
+    safeStorage.set(STORAGE_KEYS.ROLE, currentRole);
   }, [currentRole]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(currentUser));
+      safeStorage.set(STORAGE_KEYS.USER, currentUser);
     } else {
-      localStorage.removeItem(STORAGE_KEYS.USER);
+      safeStorage.remove(STORAGE_KEYS.USER);
     }
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.COMPLAINTS, JSON.stringify(complaints));
+    safeStorage.set(STORAGE_KEYS.COMPLAINTS, complaints);
   }, [complaints]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(residents));
+    safeStorage.set(STORAGE_KEYS.RESIDENTS, residents);
   }, [residents]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.DIRECTIVES, JSON.stringify(directives));
+    safeStorage.set(STORAGE_KEYS.DIRECTIVES, directives);
   }, [directives]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.OFFICERS, JSON.stringify(officers));
+    safeStorage.set(STORAGE_KEYS.OFFICERS, officers);
   }, [officers]);
 
   // Language switcher

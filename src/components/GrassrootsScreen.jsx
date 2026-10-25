@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { TVK_WHISTLE_LOGO_URL } from '../data/singanallurData';
+import { compressImage } from '../utils/imageCompressor';
 
 export const GrassrootsScreen = () => {
   const {
@@ -39,34 +40,38 @@ export const GrassrootsScreen = () => {
   // Active Ward: 24 (or officer's assigned ward)
   const officerWard = currentUser?.ward || 24;
 
-  // Filter complaints by ward
-  const wardComplaints = complaints.filter(c => Number(c.ward) === Number(officerWard));
-  const pendingCount = wardComplaints.filter(c => c.status !== 'COMPLETED').length;
-  const completedCount = wardComplaints.filter(c => c.status === 'COMPLETED').length;
+  // Filter complaints by ward safely
+  const safeComplaints = Array.isArray(complaints) ? complaints : [];
+  const wardComplaints = safeComplaints.filter(c => c && Number(c.ward) === Number(officerWard));
+  const pendingCount = wardComplaints.filter(c => c && c.status !== 'COMPLETED').length;
+  const completedCount = wardComplaints.filter(c => c && c.status === 'COMPLETED').length;
 
   const displayedComplaints = wardComplaints.filter(c => {
+    if (!c) return false;
     if (filterMode === 'PENDING') return c.status !== 'COMPLETED';
     if (filterMode === 'COMPLETED') return c.status === 'COMPLETED';
     return true;
   });
 
   // Filter residents for officer's ward
-  const wardResidents = residents.filter(r => Number(r.ward) === Number(officerWard));
+  const safeResidents = Array.isArray(residents) ? residents : [];
+  const wardResidents = safeResidents.filter(r => r && Number(r.ward) === Number(officerWard));
   const displayedResidents = wardResidents.filter(r => {
+    if (!r) return false;
     if (!residentSearchQuery.trim()) return true;
     const q = residentSearchQuery.toLowerCase();
     return (
-      r.name.toLowerCase().includes(q) ||
-      r.area.toLowerCase().includes(q) ||
-      r.phone.includes(q)
+      (r.name && r.name.toLowerCase().includes(q)) ||
+      (r.area && r.area.toLowerCase().includes(q)) ||
+      (r.phone && r.phone.includes(q))
     );
   });
 
   // Open Complaint Detail View
   const handleOpenDetail = (complaint) => {
     setActiveComplaintDetail(complaint);
-    setActionNotes(complaint.actionTaken || '');
-    setProofPhotoPreview(complaint.completionPhotoUrl || null);
+    setActionNotes(complaint?.actionTaken || '');
+    setProofPhotoPreview(complaint?.completionPhotoUrl || null);
     setProofFileSize('');
     setFormError('');
     setShowConfirmModal(false);
@@ -78,17 +83,23 @@ export const GrassrootsScreen = () => {
     setShowConfirmModal(false);
   };
 
-  // Handle Photo Picker for Resolution Proof
-  const handleProofImageChange = (e) => {
-    const file = e.target.files[0];
+  // Handle Photo Picker for Resolution Proof with Automatic Compression
+  const handleProofImageChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
     if (file) {
       setProofFileSize(`${(file.size / 1024).toFixed(1)} KB`);
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        setProofPhotoPreview(uploadEvent.target.result);
-      };
-      reader.readAsDataURL(file);
-      showToast(lang === 'ta' ? 'தீர்வு புகைப்படம் இணைக்கப்பட்டது' : 'Resolution photo attached', 'success');
+      try {
+        const compressed = await compressImage(file, 900, 900, 0.72);
+        setProofPhotoPreview(compressed);
+        showToast(lang === 'ta' ? 'தீர்வு புகைப்படம் இணைக்கப்பட்டது' : 'Resolution photo attached', 'success');
+      } catch (err) {
+        console.warn('Proof image compression fallback:', err);
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          setProofPhotoPreview(uploadEvent.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -106,42 +117,52 @@ export const GrassrootsScreen = () => {
   // Final Confirmation: Mark Resolved
   const handleFinalConfirmResolution = () => {
     if (activeComplaintDetail) {
-      resolveComplaint(activeComplaintDetail.id, actionNotes, proofPhotoPreview);
+      try {
+        resolveComplaint(activeComplaintDetail.id, actionNotes, proofPhotoPreview);
 
-      // Update the active detail view with resolved state
-      setActiveComplaintDetail(prev => ({
-        ...prev,
-        status: 'COMPLETED',
-        actionTaken: actionNotes,
-        completionPhotoUrl: proofPhotoPreview || prev.completionPhotoUrl
-      }));
+        // Update the active detail view with resolved state
+        setActiveComplaintDetail(prev => ({
+          ...prev,
+          status: 'COMPLETED',
+          actionTaken: actionNotes,
+          completionPhotoUrl: proofPhotoPreview || prev?.completionPhotoUrl
+        }));
 
-      setShowConfirmModal(false);
-      showToast(
-        lang === 'ta' 
-          ? 'புகார் தீர்க்கப்பட்டது! குடிமகனுக்கு அறிவிப்பு அனுப்பப்பட்டது.' 
-          : 'Complaint resolved! Notification sent to resident.', 
-        'success'
-      );
+        setShowConfirmModal(false);
+        showToast(
+          lang === 'ta' 
+            ? 'புகார் தீர்க்கப்பட்டது! குடிமகனுக்கு அறிவிப்பு அனுப்பப்பட்டது.' 
+            : 'Complaint resolved! Notification sent to resident.', 
+          'success'
+        );
+      } catch (err) {
+        console.error('Error resolving complaint:', err);
+        showToast(lang === 'ta' ? 'பிழை ஏற்பட்டது' : 'Resolution error', 'error');
+      }
     }
   };
 
-  // Handle Officer Avatar change
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
+  // Handle Officer Avatar change with Automatic Compression
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        setOfficerAvatar(uploadEvent.target.result);
-      };
-      reader.readAsDataURL(file);
-      showToast(lang === 'ta' ? 'சுயவிவரப் படம் மாற்றப்பட்டது' : 'Profile photo updated', 'success');
+      try {
+        const compressed = await compressImage(file, 400, 400, 0.8);
+        setOfficerAvatar(compressed);
+        showToast(lang === 'ta' ? 'சுயவிவரப் படம் மாற்றப்பட்டது' : 'Profile photo updated', 'success');
+      } catch {
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          setOfficerAvatar(uploadEvent.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col max-w-[420px] mx-auto w-full pb-20 select-none">
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+    <div className="flex-1 flex flex-col max-w-[420px] mx-auto w-full select-none">
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28 space-y-4">
 
         {/* ============================================================== */}
         {/* TAB 1: GRASSROOTS COMPLAINTS                                  */}

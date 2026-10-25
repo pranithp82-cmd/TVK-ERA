@@ -35,24 +35,29 @@ export const MlaScreen = () => {
   // Newly created officer credentials for copying/sending
   const [lastCreatedOfficer, setLastCreatedOfficer] = useState(null);
 
-  // Ward-filtered complaints
-  const wardFilteredComplaints = complaints.filter(c => {
+  // Ward-filtered complaints safely
+  const safeComplaints = Array.isArray(complaints) ? complaints : [];
+  const wardFilteredComplaints = safeComplaints.filter(c => {
+    if (!c) return false;
     if (selectedWard === 'ALL') return true;
     return Number(c.ward) === Number(selectedWard);
   });
 
   const displayedComplaints = wardFilteredComplaints.filter(c => {
+    if (!c) return false;
     if (compFilter === 'PENDING') return c.status !== 'COMPLETED';
     if (compFilter === 'COMPLETED') return c.status === 'COMPLETED';
     return true;
   });
 
   const totalGrievances = wardFilteredComplaints.length;
-  const pendingGrievances = wardFilteredComplaints.filter(c => c.status !== 'COMPLETED').length;
-  const resolvedGrievances = wardFilteredComplaints.filter(c => c.status === 'COMPLETED').length;
+  const pendingGrievances = wardFilteredComplaints.filter(c => c && c.status !== 'COMPLETED').length;
+  const resolvedGrievances = wardFilteredComplaints.filter(c => c && c.status === 'COMPLETED').length;
 
   // Ward-filtered officers
-  const wardFilteredOfficers = officers.filter(o => {
+  const safeOfficers = Array.isArray(officers) ? officers : [];
+  const wardFilteredOfficers = safeOfficers.filter(o => {
+    if (!o) return false;
     if (selectedWard === 'ALL') return true;
     return Number(o.ward) === Number(selectedWard);
   });
@@ -100,8 +105,8 @@ export const MlaScreen = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col max-w-[420px] mx-auto w-full pb-20 select-none">
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+    <div className="flex-1 flex flex-col max-w-[420px] mx-auto w-full select-none">
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28 space-y-4">
 
         {/* ============================================================== */}
         {/* TOP WARD FILTER BOX (NO HERO/ACTIVE/KPI BOXES)                 */}

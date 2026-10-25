@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { TVK_WHISTLE_LOGO_URL, OFFICIALS_DIRECTORY, MLA_INFO } from '../data/singanallurData';
+import { compressImage } from '../utils/imageCompressor';
 
 export const CitizenScreen = () => {
   const {
@@ -35,34 +36,42 @@ export const CitizenScreen = () => {
 
   // Counts
   const residentWard = currentUser?.ward || 24;
-  const totalCount = complaints.length;
-  const notSolvedCount = complaints.filter(c => c.status !== 'COMPLETED').length;
-  const solvedCount = complaints.filter(c => c.status === 'COMPLETED').length;
+  const safeComplaints = Array.isArray(complaints) ? complaints : [];
+  const totalCount = safeComplaints.length;
+  const notSolvedCount = safeComplaints.filter(c => c && c.status !== 'COMPLETED').length;
+  const solvedCount = safeComplaints.filter(c => c && c.status === 'COMPLETED').length;
 
   // Filter complaints based on statusFilter
-  const filteredComplaints = complaints.filter(c => {
+  const filteredComplaints = safeComplaints.filter(c => {
+    if (!c) return false;
     if (statusFilter === 'NOT_SOLVED') return c.status !== 'COMPLETED';
     if (statusFilter === 'SOLVED') return c.status === 'COMPLETED';
     return true;
   });
 
-  // Handle Photo Pick
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
+  // Handle Photo Pick with Automatic Mobile Compression
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
     if (file) {
       setPhotoName(file.name);
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        setPhotoPreview(uploadEvent.target.result);
-      };
-      reader.readAsDataURL(file);
-      showToast(`${file.name} ${lang === 'ta' ? 'இணைக்கப்பட்டது' : 'attached'}`, 'success');
+      try {
+        const compressed = await compressImage(file, 900, 900, 0.72);
+        setPhotoPreview(compressed);
+        showToast(`${file.name} ${lang === 'ta' ? 'இணைக்கப்பட்டது' : 'attached'}`, 'success');
+      } catch (err) {
+        console.warn('Image processing fallback:', err);
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          setPhotoPreview(uploadEvent.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
   // Handle Video Pick
   const handleVideoChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files && e.target.files[0];
     if (file) {
       setVideoName(file.name);
       showToast(`${lang === 'ta' ? 'வீடியோ இணைக்கப்பட்டது:' : 'Video attached:'} ${file.name}`, 'success');
@@ -94,27 +103,30 @@ export const CitizenScreen = () => {
       return;
     }
 
-    addComplaint({
-      category: 'Public Civic Grievance',
-      description,
-      photoUrl: photoPreview,
-      videoName,
-      hasVoice: voiceRecorded,
-      ward: residentWard,
-      area: currentUser?.area || 'V.O.C Street, Ward 24'
-    });
+    try {
+      addComplaint({
+        category: 'Public Civic Grievance',
+        description: description.trim(),
+        photoUrl: photoPreview || '',
+        videoName: videoName || '',
+        hasVoice: voiceRecorded,
+        ward: residentWard,
+        area: currentUser?.area || 'V.O.C Street, Ward 24'
+      });
 
-    // Reset Form
-    setDescription('');
-    setPhotoPreview(null);
-    setPhotoName('');
-    setVideoName('');
-    setVoiceRecorded(false);
+      // Reset Form
+      setDescription('');
+      setPhotoPreview(null);
+      setPhotoName('');
+      setVideoName('');
+      setVoiceRecorded(false);
 
-    // Switch to status tab to view the submitted complaint
-    setTimeout(() => {
+      // Switch to status tab to view the submitted complaint
       setActiveTab('STATUS');
-    }, 500);
+    } catch (err) {
+      console.error('Error submitting grievance:', err);
+      showToast(lang === 'ta' ? 'புகார் பதிவு செய்வதில் பிழை' : 'Failed to register grievance', 'error');
+    }
   };
 
   // Save Profile Changes
@@ -129,9 +141,9 @@ export const CitizenScreen = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col max-w-[420px] mx-auto w-full pb-20 select-none">
-      {/* Scrollable Content Container */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+    <div className="flex-1 flex flex-col max-w-[420px] mx-auto w-full select-none">
+      {/* Scrollable Content Container with mobile bottom clearance */}
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28 space-y-4">
 
         {/* ============================================================== */}
         {/* TAB 1: REPORT GRIEVANCE (புகார் பதிவு)                         */}
@@ -416,7 +428,12 @@ export const CitizenScreen = () => {
                       {/* Citizen's Attached Photo (if uploaded) */}
                       {comp.photoUrl && (
                         <div className="rounded-xl overflow-hidden border border-amber-200">
-                          <img src={comp.photoUrl} alt="Complaint Issue" className="w-full h-36 object-cover" />
+                          <img
+                            src={comp.photoUrl}
+                            alt="Complaint Issue"
+                            className="w-full h-36 object-cover"
+                            onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                          />
                           <div className="bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-900 border-t border-amber-200 flex items-center justify-between">
                             <span className="flex items-center gap-1">
                               <span className="material-symbols-outlined text-[13px]">image</span>
@@ -449,6 +466,7 @@ export const CitizenScreen = () => {
                             src={comp.completionPhotoUrl}
                             alt="Resolution Work Proof"
                             className="w-full h-36 object-cover"
+                            onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
                           />
                         </div>
                       )}

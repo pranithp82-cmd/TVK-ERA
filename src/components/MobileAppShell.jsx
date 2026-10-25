@@ -91,7 +91,7 @@ export const MobileAppShell = ({ children }) => {
 
       {/* Main Viewport Container */}
       <div
-        className={`w-full transition-all duration-300 min-h-screen sm:min-h-[860px] sm:max-h-[920px] bg-brand-appBg flex flex-col justify-between shadow-2xl relative sm:rounded-[36px] overflow-hidden border border-amber-200/80 ${
+        className={`w-full transition-all duration-300 min-h-[100dvh] sm:min-h-[860px] sm:max-h-[920px] bg-brand-appBg flex flex-col justify-between shadow-2xl relative sm:rounded-[36px] overflow-hidden border border-amber-200/80 ${
           viewMode === 'mobile'
             ? 'max-w-[420px]'
             : viewMode === 'tablet'
@@ -103,7 +103,7 @@ export const MobileAppShell = ({ children }) => {
         <TopHeader />
 
         {/* Screen Viewport */}
-        <main className="flex-1 flex flex-col overflow-y-auto custom-scroll relative">
+        <main className="flex-1 flex flex-col overflow-hidden relative">
           {children}
         </main>
 
