@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { TVK_WHISTLE_LOGO_URL, OFFICIALS_DIRECTORY } from '../data/singanallurData';
+import { TVK_WHISTLE_LOGO_URL, OFFICIALS_DIRECTORY, MLA_INFO } from '../data/singanallurData';
 
 export const CitizenScreen = () => {
   const {
@@ -10,15 +10,13 @@ export const CitizenScreen = () => {
     updateResidentProfile,
     logout,
     showToast,
-    t,
     lang
   } = useApp();
 
-  // Active Tab: 'REPORT' | 'STATUS' | 'CONTACTS' | 'PROFILE'
+  // Active Tab: 'STATUS' (default) | 'REPORT' | 'CONTACTS' | 'PROFILE'
   const [activeTab, setActiveTab] = useState('STATUS');
 
-  // Grievance Form State
-  const [category, setCategory] = useState('Roads & Streetlights');
+  // Grievance Form State (Category dropdown removed as requested)
   const [description, setDescription] = useState('');
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoName, setPhotoName] = useState('');
@@ -26,7 +24,7 @@ export const CitizenScreen = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [voiceRecorded, setVoiceRecorded] = useState(false);
 
-  // Status Filter: 'ALL' | 'IN_PROGRESS' | 'COMPLETED'
+  // Status Filter: 'ALL' | 'NOT_SOLVED' | 'SOLVED'
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   // Profile Edit Modal State
@@ -35,17 +33,18 @@ export const CitizenScreen = () => {
   const [editPhone, setEditPhone] = useState(currentUser?.phone || '+91 94432 18890');
   const [editArea, setEditArea] = useState(currentUser?.area || 'V.O.C Street, Ward 24');
 
-  // Filter complaints for current resident or ward
+  // Counts
   const residentWard = currentUser?.ward || 24;
+  const totalCount = complaints.length;
+  const notSolvedCount = complaints.filter(c => c.status !== 'COMPLETED').length;
+  const solvedCount = complaints.filter(c => c.status === 'COMPLETED').length;
+
+  // Filter complaints based on statusFilter
   const filteredComplaints = complaints.filter(c => {
-    if (statusFilter === 'IN_PROGRESS') return c.status !== 'COMPLETED';
-    if (statusFilter === 'COMPLETED') return c.status === 'COMPLETED';
+    if (statusFilter === 'NOT_SOLVED') return c.status !== 'COMPLETED';
+    if (statusFilter === 'SOLVED') return c.status === 'COMPLETED';
     return true;
   });
-
-  const reportedCount = complaints.length;
-  const inProgressCount = complaints.filter(c => c.status !== 'COMPLETED').length;
-  const resolvedCount = complaints.filter(c => c.status === 'COMPLETED').length;
 
   // Handle Photo Pick
   const handlePhotoChange = (e) => {
@@ -57,7 +56,7 @@ export const CitizenScreen = () => {
         setPhotoPreview(uploadEvent.target.result);
       };
       reader.readAsDataURL(file);
-      showToast(`${file.name} attached`, 'success');
+      showToast(`${file.name} ${lang === 'ta' ? 'இணைக்கப்பட்டது' : 'attached'}`, 'success');
     }
   };
 
@@ -66,7 +65,7 @@ export const CitizenScreen = () => {
     const file = e.target.files[0];
     if (file) {
       setVideoName(file.name);
-      showToast(`Video attached: ${file.name}`, 'success');
+      showToast(`${lang === 'ta' ? 'வீடியோ இணைக்கப்பட்டது:' : 'Video attached:'} ${file.name}`, 'success');
     }
   };
 
@@ -79,7 +78,7 @@ export const CitizenScreen = () => {
         setIsRecording(false);
         setVoiceRecorded(true);
         showToast(lang === 'ta' ? 'குரல் செய்தி சேமிக்கப்பட்டது (0:14)' : 'Voice note saved (0:14)', 'success');
-      }, 3500);
+      }, 3000);
     } else {
       setIsRecording(false);
       setVoiceRecorded(true);
@@ -91,18 +90,18 @@ export const CitizenScreen = () => {
   const handleSubmitGrievance = (e) => {
     e.preventDefault();
     if (!description.trim()) {
-      showToast(lang === 'ta' ? 'புகார் விபரங்களை உள்ளிடவும்.' : 'Please enter complaint details.', 'error');
+      showToast(lang === 'ta' ? 'புகார் விபரங்களை எழுதவும்.' : 'Please enter complaint details.', 'error');
       return;
     }
 
     addComplaint({
-      category,
+      category: 'Public Civic Grievance',
       description,
       photoUrl: photoPreview,
       videoName,
       hasVoice: voiceRecorded,
       ward: residentWard,
-      area: currentUser?.area || 'V.O.C Street'
+      area: currentUser?.area || 'V.O.C Street, Ward 24'
     });
 
     // Reset Form
@@ -112,10 +111,10 @@ export const CitizenScreen = () => {
     setVideoName('');
     setVoiceRecorded(false);
 
-    // Navigate to status tab
+    // Switch to status tab to view the submitted complaint
     setTimeout(() => {
       setActiveTab('STATUS');
-    }, 600);
+    }, 500);
   };
 
   // Save Profile Changes
@@ -135,112 +134,58 @@ export const CitizenScreen = () => {
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
 
         {/* ============================================================== */}
-        {/* RESIDENT WARD STATUS CARD                                      */}
-        {/* ============================================================== */}
-        <section className="bg-white rounded-2xl p-4 border border-brand-cardBorder shadow-xs relative overflow-hidden">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                <span>{lang === 'ta' ? `வார்டு ${residentWard} • சிங்காநல்லூர்` : `Ward ${residentWard} • Singanallur`}</span>
-              </div>
-              <h2 className="text-base font-bold text-slate-900 pt-1">
-                {currentUser?.name || 'Sampooraniyan (சம் பூரணியன்)'}
-              </h2>
-              <p className="text-xs text-slate-500 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[15px] text-slate-400">home_pin</span>
-                <span>{currentUser?.area || 'V.O.C Street, Ward 24, Singanallur'}</span>
-              </p>
-            </div>
-
-            {/* Emergency Hotline Button */}
-            <a
-              href="tel:1950"
-              className="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-brand-red border border-red-200 text-xs font-bold flex items-center gap-1 shadow-2xs active:scale-95 transition-all"
-            >
-              <span className="material-symbols-outlined text-[16px]">emergency</span>
-              <span>1950</span>
-            </a>
-          </div>
-
-          {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-amber-100 text-center">
-            <div className="bg-amber-50/60 rounded-xl p-1.5 border border-amber-200/60">
-              <div className="text-[10px] font-bold text-slate-500 uppercase">{t.statReported}</div>
-              <div className="text-sm font-black text-slate-900 mt-0.5">{reportedCount}</div>
-            </div>
-            <div className="bg-amber-100/60 rounded-xl p-1.5 border border-amber-300/60">
-              <div className="text-[10px] font-bold text-amber-900 uppercase">{t.statInProgress}</div>
-              <div className="text-sm font-black text-amber-800 mt-0.5">{inProgressCount}</div>
-            </div>
-            <div className="bg-emerald-50 rounded-xl p-1.5 border border-emerald-200">
-              <div className="text-[10px] font-bold text-emerald-800 uppercase">{t.statResolved}</div>
-              <div className="text-sm font-black text-emerald-700 mt-0.5">{resolvedCount}</div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============================================================== */}
         {/* TAB 1: REPORT GRIEVANCE (புகார் பதிவு)                         */}
         {/* ============================================================== */}
         {activeTab === 'REPORT' && (
           <div className="space-y-4 animate-fade-in">
-            <div className="bg-white rounded-2xl p-4 border border-brand-cardBorder shadow-xs space-y-3.5">
-              <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-brand-redSoft text-brand-red flex items-center justify-center font-bold">
-                    <span className="material-symbols-outlined text-[18px]">campaign</span>
-                  </div>
-                  <h3 className="text-sm font-extrabold text-slate-900 tracking-wide uppercase">
-                    {t.reportTabTitle}
-                  </h3>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-400">{t.ac121Direct}</span>
+            {/* Header */}
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></span>
+                <span>{lang === 'ta' ? 'நேரடி புகார் பதிவு • AC 121' : 'Lodge Grievance • AC 121'}</span>
               </div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                {lang === 'ta' ? 'புகார் பதிவு செய்ய' : 'Submit Civic Complaint'}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                {lang === 'ta'
+                  ? 'உங்கள் பகுதி குறை அல்லது புகாரை விபரமாக எழுதி அனுப்பவும்'
+                  : 'Write your local civic issue in detail and attach media.'}
+              </p>
+            </div>
 
-              {/* Category Dropdown */}
+            {/* Grievance Form */}
+            <form onSubmit={handleSubmitGrievance} className="bg-white rounded-2xl p-4 border border-brand-cardBorder shadow-xs space-y-3.5">
+              {/* Description Textarea (Letter / Details) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
-                  {t.labelCategory}
-                </label>
-                <div className="relative">
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full h-11 px-3 text-xs sm:text-sm rounded-xl border border-amber-200/90 bg-white text-slate-800 font-medium focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none shadow-2xs cursor-pointer"
-                  >
-                    <option value="Roads & Streetlights">Roads & Streetlights / சாலை & தெருவிளக்கு</option>
-                    <option value="Water Supply & Sewage">Water Supply & Sewage / குடிநீர் & கழிவுநீர்</option>
-                    <option value="Garbage & Sanitation">Garbage & Sanitation / தூய்மைப்பணி</option>
-                    <option value="Public Health & Parks">Public Health & Parks / சுகாதாரம் & பூங்காக்கள்</option>
-                    <option value="Other Civic Inquiries">Other Civic Inquiries / இதர கோரிக்கைகள்</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Description Textarea */}
-              <div>
-                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
-                  {t.labelDetails}
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5 flex items-center justify-between">
+                  <span>{lang === 'ta' ? 'புகார் விபரம் (Complaint Details) *' : 'Complaint Details *'}</span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    {lang === 'ta' ? 'தெரு / பகுதி விபரம்' : 'Street / Area details'}
+                  </span>
                 </label>
                 <textarea
-                  rows="3"
+                  rows="4"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder={t.detailsPlaceholder}
-                  className="w-full p-3 text-xs sm:text-sm rounded-xl border border-amber-200/90 bg-white text-slate-800 placeholder-slate-400 font-medium focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none shadow-2xs resize-none"
+                  placeholder={
+                    lang === 'ta'
+                      ? 'உங்கள் பகுதி குறை, தெரு பெயர் அல்லது அடையாளத்தை விரிவாக இங்கு எழுதவும்...'
+                      : 'Describe the issue in detail with street name, landmark, or house number...'
+                  }
+                  className="w-full p-3 text-xs sm:text-sm rounded-xl border border-amber-200 bg-white text-slate-800 placeholder-slate-400 font-medium focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none shadow-2xs resize-none"
                   required
                 ></textarea>
               </div>
 
-              {/* Media Upload Grid (Photo, Video, Voice) */}
+              {/* Media Attachments (Photo, Video, Voice) */}
               <div className="grid grid-cols-3 gap-2">
                 {/* 1. Photo Upload */}
                 <div>
                   <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1 truncate">
-                    {t.labelPhoto}
+                    {lang === 'ta' ? 'புகைப்படம்' : 'Photo'}
                   </label>
-                  <label className="h-20 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-amber-300 hover:border-brand-red bg-brand-appBg cursor-pointer p-1.5 text-center transition-colors relative overflow-hidden">
+                  <label className="h-20 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-amber-300 hover:border-brand-red bg-brand-appBg cursor-pointer p-1 text-center transition-colors relative overflow-hidden">
                     <input
                       type="file"
                       accept="image/*"
@@ -253,7 +198,7 @@ export const CitizenScreen = () => {
                       <>
                         <span className="material-symbols-outlined text-brand-red text-[20px]">add_a_photo</span>
                         <span className="text-[10px] text-slate-600 font-semibold mt-1 truncate max-w-full px-0.5">
-                          {photoName ? photoName.slice(0, 10) : t.uploadPhotoPrompt}
+                          {photoName ? photoName.slice(0, 10) : (lang === 'ta' ? 'படம் இணைக்க' : 'Upload')}
                         </span>
                       </>
                     )}
@@ -263,9 +208,9 @@ export const CitizenScreen = () => {
                 {/* 2. Video Upload */}
                 <div>
                   <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1 truncate">
-                    {t.labelVideo}
+                    {lang === 'ta' ? 'வீடியோ' : 'Video'}
                   </label>
-                  <label className="h-20 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-amber-300 hover:border-brand-red bg-brand-appBg cursor-pointer p-1.5 text-center transition-colors">
+                  <label className="h-20 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-amber-300 hover:border-brand-red bg-brand-appBg cursor-pointer p-1 text-center transition-colors">
                     <input
                       type="file"
                       accept="video/*"
@@ -276,7 +221,7 @@ export const CitizenScreen = () => {
                       {videoName ? 'check_circle' : 'videocam'}
                     </span>
                     <span className="text-[10px] text-slate-600 font-semibold mt-1 truncate max-w-full px-0.5">
-                      {videoName ? videoName.slice(0, 10) : t.uploadVideoPrompt}
+                      {videoName ? videoName.slice(0, 10) : (lang === 'ta' ? 'வீடியோ' : 'Upload')}
                     </span>
                   </label>
                 </div>
@@ -284,9 +229,9 @@ export const CitizenScreen = () => {
                 {/* 3. Voice Recording */}
                 <div>
                   <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1 truncate">
-                    {t.labelVoice}
+                    {lang === 'ta' ? 'குரல் பதிவு' : 'Voice Note'}
                   </label>
-                  <div className="h-20 rounded-xl border border-amber-200/90 bg-brand-appBg flex flex-col items-center justify-center p-1.5 text-center">
+                  <div className="h-20 rounded-xl border border-amber-200 bg-brand-appBg flex flex-col items-center justify-center p-1 text-center">
                     <button
                       type="button"
                       onClick={handleToggleVoice}
@@ -303,7 +248,11 @@ export const CitizenScreen = () => {
                       </span>
                     </button>
                     <span className="text-[10px] text-slate-600 font-semibold mt-1 truncate max-w-full">
-                      {isRecording ? t.recordingInProgress : voiceRecorded ? t.voiceSaved : t.tapToRecord}
+                      {isRecording 
+                        ? (lang === 'ta' ? 'பதிவாகிறது...' : 'Recording...') 
+                        : voiceRecorded 
+                          ? (lang === 'ta' ? 'சேமிக்கப்பட்டது' : 'Saved (0:14)') 
+                          : (lang === 'ta' ? 'பேசவும்' : 'Tap to speak')}
                     </span>
                   </div>
                 </div>
@@ -311,34 +260,13 @@ export const CitizenScreen = () => {
 
               {/* Submit Button */}
               <button
-                type="button"
-                onClick={handleSubmitGrievance}
+                type="submit"
                 className="w-full h-11 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-[0.99] text-white font-bold text-sm tracking-wide uppercase shadow-lg shadow-red-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[19px]">send</span>
-                <span>{t.submitBtn}</span>
+                <span>{lang === 'ta' ? 'புகாரை சமர்ப்பிக்க' : 'Submit Grievance'}</span>
               </button>
-            </div>
-
-            {/* Recent Activity Quick Preview */}
-            <div className="bg-white rounded-xl p-3.5 border border-brand-cardBorder flex items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">pending_actions</span>
-                </div>
-                <div>
-                  <h5 className="text-xs font-bold text-slate-900 leading-tight">Damaged Pipeline Repair</h5>
-                  <p className="text-[11px] text-slate-500 mt-0.5">V.O.C Street • Action: Inspection dispatched</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveTab('STATUS')}
-                className="px-2.5 py-1 rounded-full bg-brand-yellowSoft text-[10px] font-bold text-amber-900 border border-brand-yellow shrink-0 cursor-pointer"
-              >
-                View
-              </button>
-            </div>
+            </form>
           </div>
         )}
 
@@ -348,11 +276,11 @@ export const CitizenScreen = () => {
         {activeTab === 'STATUS' && (
           <div className="space-y-3.5 animate-fade-in">
             {/* Header & Subtitle */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
                   <span className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></span>
-                  <span>நேரடி கண்காணிப்பு • Live Tracking</span>
+                  <span>{lang === 'ta' ? 'நேரடி கண்காணிப்பு • Live Tracking' : 'Live Grievance Tracking'}</span>
                 </div>
                 <button
                   type="button"
@@ -360,21 +288,21 @@ export const CitizenScreen = () => {
                   className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white text-xs font-bold flex items-center gap-1 shadow-md shadow-red-500/20 active:scale-95 transition-all cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[16px]">add</span>
-                  <span>{lang === 'ta' ? 'புதிய மனு +' : 'New +'}</span>
+                  <span>{lang === 'ta' ? 'புதிய புகார் +' : 'New Grievance +'}</span>
                 </button>
               </div>
 
-              <div>
-                <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight leading-tight">
-                  {t.statusTabTitle}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                  {t.statusTabSub}
-                </p>
-              </div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                {lang === 'ta' ? 'புகார் நிலை கண்காணிப்பு' : 'Grievance Status Tracker'}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                {lang === 'ta'
+                  ? 'உங்கள் புகார்களின் நேரடி தீர்வு நிலை மற்றும் தீர்வு புகைப்படங்கள்'
+                  : 'Track your complaints status, field progress and resolution photos.'}
+              </p>
             </div>
 
-            {/* Filter Tabs */}
+            {/* Filter Tabs: ALL | NOT SOLVED | SOLVED */}
             <div className="bg-amber-100/70 p-1 rounded-2xl border border-amber-200/80 flex items-center justify-between text-xs font-bold shadow-2xs gap-1">
               <button
                 type="button"
@@ -385,29 +313,29 @@ export const CitizenScreen = () => {
                     : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
-                {t.filterAll} ({complaints.length})
+                {lang === 'ta' ? 'அனைத்தும்' : 'ALL'} ({totalCount})
               </button>
               <button
                 type="button"
-                onClick={() => setStatusFilter('IN_PROGRESS')}
+                onClick={() => setStatusFilter('NOT_SOLVED')}
                 className={`flex-1 py-1.5 text-center rounded-xl transition-all cursor-pointer ${
-                  statusFilter === 'IN_PROGRESS'
+                  statusFilter === 'NOT_SOLVED'
                     ? 'bg-brand-red text-white shadow-xs'
                     : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
-                {t.filterInProgress} ({inProgressCount})
+                {lang === 'ta' ? 'தீர்க்கப்படாதவை' : 'NOT SOLVED'} ({notSolvedCount})
               </button>
               <button
                 type="button"
-                onClick={() => setStatusFilter('COMPLETED')}
+                onClick={() => setStatusFilter('SOLVED')}
                 className={`flex-1 py-1.5 text-center rounded-xl transition-all cursor-pointer ${
-                  statusFilter === 'COMPLETED'
+                  statusFilter === 'SOLVED'
                     ? 'bg-brand-red text-white shadow-xs'
                     : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
-                {t.filterCompleted} ({resolvedCount})
+                {lang === 'ta' ? 'தீர்க்கப்பட்டவை' : 'SOLVED'} ({solvedCount})
               </button>
             </div>
 
@@ -416,30 +344,31 @@ export const CitizenScreen = () => {
               {filteredComplaints.length === 0 ? (
                 <div className="bg-white rounded-2xl p-8 text-center border border-amber-200 text-slate-500 space-y-2">
                   <span className="material-symbols-outlined text-4xl text-amber-400">inventory_2</span>
-                  <p className="text-xs font-bold">No grievances found in this category</p>
+                  <p className="text-xs font-bold">
+                    {lang === 'ta' ? 'இப்பிரிவில் புகார்கள் எதுவும் இல்லை' : 'No grievances found in this category'}
+                  </p>
                 </div>
               ) : (
                 filteredComplaints.map(comp => {
                   const isCompleted = comp.status === 'COMPLETED';
-                  const stage = isCompleted ? 4 : (comp.stage || 2);
 
                   return (
                     <div
                       key={comp.id}
-                      className={`bg-white rounded-2xl p-4 border shadow-xs space-y-3.5 relative overflow-hidden ${
+                      className={`bg-white rounded-2xl p-4 border shadow-xs space-y-3 relative overflow-hidden ${
                         isCompleted ? 'border-emerald-200' : 'border-brand-cardBorder'
                       }`}
                     >
-                      {/* Top status accent border */}
+                      {/* Top status accent line */}
                       <div
                         className={`absolute top-0 left-0 right-0 h-1 ${
                           isCompleted
-                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                            ? 'bg-emerald-500'
                             : 'bg-gradient-to-r from-amber-500 to-[#EF4444]'
                         }`}
                       ></div>
 
-                      {/* Header: ID + Badge */}
+                      {/* Header: Complaint ID, Date & Top Solved/Not Solved Button */}
                       <div className="flex items-start justify-between gap-2 pt-0.5">
                         <div>
                           <div className="flex items-center gap-2">
@@ -451,163 +380,78 @@ export const CitizenScreen = () => {
                               <span>{comp.createdAt}</span>
                             </span>
                           </div>
-                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 mt-1.5 leading-snug">
-                            {comp.title || comp.category}
-                          </h4>
+                          <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-1">
+                            <span className="material-symbols-outlined text-[13px] text-brand-red">location_on</span>
+                            <span>{comp.area || 'Ward 24, Singanallur'}</span>
+                          </div>
                         </div>
 
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${
+                        {/* Top Solved / Not Solved Button */}
+                        <div
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black shrink-0 shadow-2xs ${
                             isCompleted
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : 'bg-brand-yellowSoft text-amber-900 border border-brand-yellow'
+                              ? 'bg-emerald-50 text-emerald-800 border-2 border-emerald-300'
+                              : 'bg-amber-50 text-amber-900 border-2 border-amber-300'
                           }`}
                         >
                           {isCompleted ? (
                             <>
-                              <span className="material-symbols-outlined text-[13px] text-emerald-700">check_circle</span>
-                              <span>{lang === 'ta' ? 'தீர்க்கப்பட்டது ✓' : 'Resolved ✓'}</span>
+                              <span className="material-symbols-outlined text-[16px] text-emerald-600 font-black">check_circle</span>
+                              <span>{lang === 'ta' ? 'Solved ✓' : 'Solved ✓'}</span>
                             </>
                           ) : (
                             <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                              <span>{lang === 'ta' ? 'செயலில் உள்ளது' : 'In Progress'}</span>
+                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                              <span>{lang === 'ta' ? 'Not Solved' : 'Not Solved'}</span>
                             </>
                           )}
-                        </span>
+                        </div>
                       </div>
 
-                      {/* Description */}
-                      <div className="p-2.5 rounded-xl bg-brand-appBg/80 border border-amber-100 text-xs text-slate-700 leading-relaxed">
+                      {/* Citizen's Complaint Letter / Details */}
+                      <div className="p-3 rounded-xl bg-brand-appBg border border-amber-100 text-xs text-slate-800 leading-relaxed font-medium">
                         {comp.description}
                       </div>
 
-                      {/* Optional Photo Attachment */}
+                      {/* Citizen's Attached Photo (if uploaded) */}
                       {comp.photoUrl && (
-                        <div className="rounded-xl overflow-hidden border border-amber-200/80 max-h-36">
-                          <img src={comp.photoUrl} alt="Complaint" className="w-full h-32 object-cover" />
-                        </div>
-                      )}
-
-                      {/* 4-Stage Resolution Stepper */}
-                      <div className="pt-1">
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center justify-between">
-                          <span>{lang === 'ta' ? 'தீர்வு கட்டங்கள் (Stages)' : 'Resolution Stages'}</span>
-                          <span className={isCompleted ? 'text-emerald-700 font-bold' : 'text-brand-red font-semibold'}>
-                            {lang === 'ta' ? `கட்டம் ${stage} / 4` : `Stage ${stage} / 4`}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-1 relative">
-                          {/* Step 1 */}
-                          <div className="flex flex-col items-center text-center space-y-1">
-                            <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center">
-                              <span className="material-symbols-outlined text-[14px]">done</span>
-                            </div>
-                            <span className="text-[9px] font-bold text-emerald-800 leading-tight">பதிவு</span>
-                          </div>
-                          {/* Step 2 */}
-                          <div className={`flex flex-col items-center text-center space-y-1 ${stage >= 2 ? '' : 'opacity-50'}`}>
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              stage >= 2 
-                                ? 'bg-amber-100 border border-amber-300 text-amber-900 ring-2 ring-amber-200' 
-                                : 'bg-slate-100 border border-slate-200 text-slate-500'
-                            }`}>
-                              <span className="material-symbols-outlined text-[14px]">engineering</span>
-                            </div>
-                            <span className="text-[9px] font-bold text-amber-900 leading-tight">அதிகாரி</span>
-                          </div>
-                          {/* Step 3 */}
-                          <div className={`flex flex-col items-center text-center space-y-1 ${stage >= 3 ? '' : 'opacity-50'}`}>
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              stage >= 3
-                                ? 'bg-amber-100 border border-amber-300 text-amber-900 ring-2 ring-amber-200'
-                                : 'bg-slate-100 border border-slate-200 text-slate-500'
-                            }`}>
-                              <span className="material-symbols-outlined text-[13px]">build</span>
-                            </div>
-                            <span className="text-[9px] font-medium text-slate-600 leading-tight">கள ஆய்வு</span>
-                          </div>
-                          {/* Step 4 */}
-                          <div className={`flex flex-col items-center text-center space-y-1 ${isCompleted ? '' : 'opacity-50'}`}>
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              isCompleted
-                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 ring-2 ring-emerald-200'
-                                : 'bg-slate-100 border border-slate-200 text-slate-500'
-                            }`}>
-                              <span className="material-symbols-outlined text-[13px]">verified</span>
-                            </div>
-                            <span className={`text-[9px] font-bold leading-tight ${isCompleted ? 'text-emerald-800' : 'text-slate-600'}`}>
-                              {isCompleted ? 'தீர்வு ✓' : 'தீர்வு'}
+                        <div className="rounded-xl overflow-hidden border border-amber-200">
+                          <img src={comp.photoUrl} alt="Complaint Issue" className="w-full h-36 object-cover" />
+                          <div className="bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-900 border-t border-amber-200 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px]">image</span>
+                              <span>{lang === 'ta' ? 'குடிமகன் இணைத்த புகைப்படம்' : 'Issue Photo Attached'}</span>
                             </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Taken Section */}
-                      <div className={`rounded-xl p-3 border space-y-1.5 ${
-                        isCompleted
-                          ? 'bg-emerald-50/70 border-emerald-200'
-                          : 'bg-brand-appBg border-amber-200/80 shadow-2xs'
-                      }`}>
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-900">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`material-symbols-outlined text-[16px] ${isCompleted ? 'text-emerald-700' : 'text-amber-800'}`}>
-                              {isCompleted ? 'task_alt' : 'construction'}
-                            </span>
-                            <span>{t.actionTakenLabel}</span>
-                          </div>
-                          {comp.wingName && (
-                            <span className="text-[10px] text-amber-900 bg-amber-100/70 px-2 py-0.5 rounded-full border border-amber-200">
-                              {comp.wingName}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-700 leading-relaxed">
-                          {comp.actionTaken || 'Assigned to field team for inspection.'}
-                        </p>
-
-                        {/* Verified Seal Badge if Completed */}
-                        {isCompleted && (
-                          <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-emerald-200 text-xs shadow-2xs mt-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-[14px]">verified</span>
-                              </div>
-                              <span className="text-[10px] font-bold text-emerald-900">
-                                {comp.verifiedBy || t.verifiedBadge}
-                              </span>
-                            </div>
-                            <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                              AC 121
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Completion Photo Proof (if exists) */}
-                      {comp.completionPhotoUrl && (
-                        <div className="rounded-xl overflow-hidden border border-emerald-300">
-                          <img src={comp.completionPhotoUrl} alt="Work Proof" className="w-full h-32 object-cover" />
-                          <div className="bg-emerald-100 text-emerald-900 px-2 py-1 text-[10px] font-bold flex items-center justify-between">
-                            <span>Verified Completion Proof</span>
-                            <span>Photo Verified</span>
+                            <span className="text-slate-500 font-normal">Singanallur AC</span>
                           </div>
                         </div>
                       )}
 
-                      {/* Footer Meta */}
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-amber-100">
-                        <span className="flex items-center gap-1 text-slate-600">
-                          <span className="material-symbols-outlined text-[15px] text-brand-red">location_on</span>
-                          <span>{comp.area}</span>
-                        </span>
-                        {comp.hasAudio && (
-                          <span className="font-bold text-brand-red flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-redSoft border border-brand-redBorder/80">
-                            <span className="material-symbols-outlined text-[13px]">mic</span>
-                            <span>Audio Note</span>
-                          </span>
-                        )}
-                      </div>
+                      {/* Voice Note Indicator (if recorded) */}
+                      {comp.hasAudio && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 text-brand-red border border-red-200 text-[11px] font-bold w-fit">
+                          <span className="material-symbols-outlined text-[14px]">mic</span>
+                          <span>{lang === 'ta' ? 'குரல் பதிவு இணைக்கப்பட்டுள்ளது' : 'Voice note attached'}</span>
+                        </div>
+                      )}
+
+                      {/* Resolution Photo by Ward Officer (Shown when Solved) */}
+                      {isCompleted && comp.completionPhotoUrl && (
+                        <div className="rounded-xl overflow-hidden border-2 border-emerald-300 shadow-xs space-y-0">
+                          <div className="bg-emerald-600 text-white px-2.5 py-1 text-[10px] font-bold flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">task_alt</span>
+                              <span>{lang === 'ta' ? 'தீர்வு புகைப்படம் (வார்டு செயலாளர்)' : 'Resolution Photo (Ward Officer)'}</span>
+                            </span>
+                            <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px]">Verified Work</span>
+                          </div>
+                          <img
+                            src={comp.completionPhotoUrl}
+                            alt="Resolution Work Proof"
+                            className="w-full h-36 object-cover"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -621,128 +465,81 @@ export const CitizenScreen = () => {
         {/* ============================================================== */}
         {activeTab === 'CONTACTS' && (
           <div className="space-y-4 animate-fade-in">
-            <div>
-              <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-tight">
-                {t.contactsTabTitle}
+            {/* Header */}
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-brand-red"></span>
+                <span>{lang === 'ta' ? 'தொகுதி தொடர்புகள் • AC 121' : 'Constituency Contacts • AC 121'}</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                {lang === 'ta' ? 'சிங்காநல்லூர் முக்கிய தொடர்புகள்' : 'Singanallur Official Contacts'}
               </h2>
-              <p className="text-xs text-slate-500">{t.contactsTabSub}</p>
+              <p className="text-xs text-slate-500 font-medium">
+                {lang === 'ta'
+                  ? 'வார்டு மற்றும் துறை சார்ந்த அதிகாரிகளை நேரடியாக தொடர்பு கொள்ளவும்'
+                  : 'Direct civic representatives, ward field coordinators and department helplines.'}
+              </p>
             </div>
 
-            {/* Category 1: Area Coordinator */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 px-1">
-                <span className="w-2 h-2 rounded-full bg-brand-red"></span>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  {t.secAreaCoord}
-                </h3>
-              </div>
-
-              <div className="bg-white rounded-2xl p-4 border border-brand-cardBorder shadow-xs flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-brand-red text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
-                    <span className="material-symbols-outlined text-[24px]">account_circle</span>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 leading-tight">
-                      K. Vijayakumar (விஜயகுமார்)
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-0.5">Constituency Head • Singanallur AC 121</p>
-                    <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-600">
-                      <span className="font-medium">+91 94432 10121</span>
+            {/* Official Contacts List */}
+            <div className="space-y-2.5">
+              {OFFICIALS_DIRECTORY.map((officer) => (
+                <div
+                  key={officer.id}
+                  className="bg-white rounded-2xl p-3.5 border border-brand-cardBorder shadow-xs flex items-center justify-between gap-3 hover:border-amber-300 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-xl bg-brand-red text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+                      <span className="material-symbols-outlined text-[22px]">
+                        {officer.type === 'AREA_HEAD' ? 'account_circle' : officer.type === 'BOOTH_MEMBER' ? 'how_to_reg' : 'support_agent'}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
+                        {lang === 'ta' ? officer.nameTa : officer.nameEn}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {lang === 'ta' ? officer.roleTa : officer.roleEn}
+                      </p>
+                      <span className="text-[11px] text-slate-700 font-bold tracking-wide mt-0.5 block">
+                        {officer.phone}
+                      </span>
                     </div>
                   </div>
+                  <a
+                    href={`tel:${officer.phone.replace(/[^0-9+]/g, '')}`}
+                    className="w-10 h-10 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-95 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0 cursor-pointer"
+                    title="Call"
+                  >
+                    <span className="material-symbols-outlined text-[19px]">call</span>
+                  </a>
                 </div>
-                <a
-                  href="tel:+919443210121"
-                  className="w-10 h-10 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-95 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0"
-                  title="Call Officer"
-                >
-                  <span className="material-symbols-outlined text-[20px]">call</span>
-                </a>
-              </div>
-            </div>
+              ))}
 
-            {/* Category 2: Ward 24 Representatives */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center gap-1.5 px-1">
-                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  {t.secWardMembers}
-                </h3>
-              </div>
-
-              {/* Member 1: Councillor */}
-              <div className="bg-white rounded-2xl p-3.5 border border-brand-cardBorder shadow-xs flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-brand-yellowSoft text-amber-900 border border-brand-yellow flex items-center justify-center font-bold shrink-0">
-                    <span className="material-symbols-outlined text-[22px]">badge</span>
+              {/* MLA Office Contact */}
+              <div className="bg-gradient-to-r from-amber-50 to-red-50 rounded-2xl p-3.5 border border-brand-cardBorder shadow-xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+                    <span className="material-symbols-outlined text-[22px]">account_balance</span>
                   </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                      M. Shanmugam (சண்முகம்)
+                  <div className="min-w-0">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
+                      {lang === 'ta' ? MLA_INFO.nameTa : MLA_INFO.nameEn}
                     </h4>
-                    <p className="text-[11px] text-slate-500">Ward Councillor • Ward 24</p>
-                    <span className="text-[11px] text-slate-600 font-medium">+91 98421 55678</span>
+                    <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                      {lang === 'ta' ? MLA_INFO.titleTa : MLA_INFO.titleEn}
+                    </p>
+                    <span className="text-[11px] text-slate-800 font-bold tracking-wide mt-0.5 block">
+                      {MLA_INFO.phone}
+                    </span>
                   </div>
                 </div>
                 <a
-                  href="tel:+919842155678"
-                  className="w-9 h-9 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-95 text-white flex items-center justify-center shadow-sm shrink-0"
+                  href={`tel:${MLA_INFO.phone.replace(/[^0-9+]/g, '')}`}
+                  className="w-10 h-10 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-95 text-white flex items-center justify-center shadow-md shadow-red-500/20 shrink-0 cursor-pointer"
+                  title="Call MLA Office"
                 >
-                  <span className="material-symbols-outlined text-[18px]">call</span>
-                </a>
-              </div>
-
-              {/* Member 2: Sanitation Inspector */}
-              <div className="bg-white rounded-2xl p-3.5 border border-brand-cardBorder shadow-xs flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-brand-yellowSoft text-amber-900 border border-brand-yellow flex items-center justify-center font-bold shrink-0">
-                    <span className="material-symbols-outlined text-[22px]">support_agent</span>
-                  </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                      R. Meenakshi (மீனாட்சி)
-                    </h4>
-                    <p className="text-[11px] text-slate-500">Sanitation Inspector • Ward 24</p>
-                    <span className="text-[11px] text-slate-600 font-medium">+91 94420 33812</span>
-                  </div>
-                </div>
-                <a
-                  href="tel:+919442033812"
-                  className="w-9 h-9 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-95 text-white flex items-center justify-center shadow-sm shrink-0"
-                >
-                  <span className="material-symbols-outlined text-[18px]">call</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Category 3: Booth 142 Committee */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center gap-1.5 px-1">
-                <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  {t.secBoothMembers}
-                </h3>
-              </div>
-
-              <div className="bg-white rounded-2xl p-3.5 border border-brand-cardBorder shadow-xs flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold shrink-0">
-                    <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
-                  </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                      S. Karthikeyan (கார்த்திகேயன்)
-                    </h4>
-                    <p className="text-[11px] text-slate-500">Booth Incharge • V.O.C Street (Booth 142)</p>
-                    <span className="text-[11px] text-slate-600 font-medium">+91 97500 12345</span>
-                  </div>
-                </div>
-                <a
-                  href="tel:+919750012345"
-                  className="w-9 h-9 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-95 text-white flex items-center justify-center shadow-sm shrink-0"
-                >
-                  <span className="material-symbols-outlined text-[18px]">call</span>
+                  <span className="material-symbols-outlined text-[19px]">call</span>
                 </a>
               </div>
             </div>
@@ -750,7 +547,7 @@ export const CitizenScreen = () => {
         )}
 
         {/* ============================================================== */}
-        {/* TAB 4: PROFILE & EMERGENCY SOS (சுயவிபரம்)                     */}
+        {/* TAB 4: PROFILE (சுயவிவரம்)                                    */}
         {/* ============================================================== */}
         {activeTab === 'PROFILE' && (
           <div className="space-y-4 animate-fade-in">
@@ -766,7 +563,9 @@ export const CitizenScreen = () => {
               <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
                 {currentUser?.name || 'Sampooraniyan (சம் பூரணியன்)'}
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">AC 121 Registered Citizen • Coimbatore</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {lang === 'ta' ? 'சிங்காநல்லூர் தொகுதி குடிமகன்' : 'Singanallur AC 121 Registered Citizen'}
+              </p>
               <div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-brand-yellowSoft border border-brand-yellow text-xs font-bold text-amber-900">
                 <span className="material-symbols-outlined text-[15px] text-amber-600">verified_user</span>
                 <span>Voter ID: {currentUser?.voterId || 'TNH121-98741'}</span>
@@ -777,7 +576,7 @@ export const CitizenScreen = () => {
             <div className="bg-white rounded-2xl p-4 border border-brand-cardBorder shadow-xs space-y-3">
               <div className="flex items-center justify-between border-b border-amber-100 pb-2">
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  {t.profileInfoTitle}
+                  {lang === 'ta' ? 'குடிமக்கள் விபரம்' : 'Citizen Information'}
                 </h3>
                 <button
                   type="button"
@@ -785,61 +584,31 @@ export const CitizenScreen = () => {
                   className="text-xs font-bold text-brand-red hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[14px]">edit</span>
-                  <span>{t.editBtn}</span>
+                  <span>{lang === 'ta' ? 'விபரம் மாற்ற' : 'Edit Profile'}</span>
                 </button>
               </div>
 
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-amber-50">
-                  <span className="text-slate-500">{t.lblPhone}</span>
+                <div className="flex justify-between py-1.5 border-b border-amber-50">
+                  <span className="text-slate-500">{lang === 'ta' ? 'தொலைபேசி எண்' : 'Phone Number'}</span>
                   <span className="font-bold text-slate-800">{currentUser?.phone || '+91 94432 18890'}</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-amber-50">
-                  <span className="text-slate-500">{t.lblWard}</span>
-                  <span className="font-bold text-slate-800">Ward {residentWard}</span>
+                <div className="flex justify-between py-1.5 border-b border-amber-50">
+                  <span className="text-slate-500">{lang === 'ta' ? 'வார்டு எண்' : 'Ward Number'}</span>
+                  <span className="font-bold text-slate-800">Ward {residentWard} (சிங்காநல்லூர்)</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-amber-50">
-                  <span className="text-slate-500">{t.lblArea}</span>
-                  <span className="font-bold text-slate-800">{currentUser?.area || 'V.O.C Street'}</span>
+                <div className="flex justify-between py-1.5 border-b border-amber-50">
+                  <span className="text-slate-500">{lang === 'ta' ? 'பகுதி / முகவரி' : 'Area / Locality'}</span>
+                  <span className="font-bold text-slate-800">{currentUser?.area || 'V.O.C Street, Ward 24'}</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-amber-50">
-                  <span className="text-slate-500">{t.lblBooth}</span>
+                <div className="flex justify-between py-1.5 border-b border-amber-50">
+                  <span className="text-slate-500">{lang === 'ta' ? 'வாக்குச்சாவடி' : 'Polling Booth'}</span>
                   <span className="font-bold text-slate-800">{currentUser?.booth || 'Booth 142 - Corporation School'}</span>
                 </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">{t.lblLanguage}</span>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-slate-500">{lang === 'ta' ? 'செயலி மொழி' : 'Language'}</span>
                   <span className="font-bold text-brand-red">{lang === 'ta' ? 'தமிழ்' : 'English'}</span>
                 </div>
-              </div>
-            </div>
-
-            {/* Emergency SOS Hub */}
-            <div className="bg-gradient-to-r from-red-50 to-amber-50 rounded-2xl p-4 border border-brand-redBorder/80 shadow-xs space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-brand-red text-[22px]">fmd_bad</span>
-                <div>
-                  <h4 className="text-xs font-extrabold text-brand-redText uppercase tracking-wide">
-                    {t.sosTitle}
-                  </h4>
-                  <p className="text-[11px] text-slate-600">{t.sosSubtitle}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <a
-                  href="tel:1950"
-                  className="h-10 rounded-xl bg-brand-red hover:bg-brand-redHover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
-                >
-                  <span className="material-symbols-outlined text-[18px]">call</span>
-                  <span>{t.helpline1950}</span>
-                </a>
-                <a
-                  href="tel:108"
-                  className="h-10 rounded-xl bg-white hover:bg-red-50 text-brand-red border border-brand-redBorder text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all"
-                >
-                  <span className="material-symbols-outlined text-[18px]">ambulance</span>
-                  <span>{t.sos108}</span>
-                </a>
               </div>
             </div>
 
@@ -850,7 +619,7 @@ export const CitizenScreen = () => {
               className="w-full h-11 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px] text-slate-500">logout</span>
-              <span>{t.logoutBtn}</span>
+              <span>{lang === 'ta' ? 'வெளியேறு (Logout)' : 'Logout'}</span>
             </button>
           </div>
         )}
@@ -873,7 +642,7 @@ export const CitizenScreen = () => {
             <span className={`material-symbols-outlined text-[22px] ${activeTab === 'REPORT' ? 'fill' : ''}`}>
               campaign
             </span>
-            <span className="text-[11px] mt-0.5">{t.navReport}</span>
+            <span className="text-[11px] mt-0.5">{lang === 'ta' ? 'புகார்' : 'REPORT'}</span>
           </button>
 
           {/* Tab 2: STATUS */}
@@ -887,8 +656,8 @@ export const CitizenScreen = () => {
             <span className={`material-symbols-outlined text-[22px] ${activeTab === 'STATUS' ? 'fill' : ''}`}>
               list_alt
             </span>
-            <span className="text-[11px] mt-0.5">{t.navStatus}</span>
-            {inProgressCount > 0 && (
+            <span className="text-[11px] mt-0.5">{lang === 'ta' ? 'நிலை' : 'STATUS'}</span>
+            {notSolvedCount > 0 && (
               <span className="absolute top-2.5 right-6 w-2 h-2 rounded-full bg-brand-red ring-2 ring-white"></span>
             )}
           </button>
@@ -904,7 +673,7 @@ export const CitizenScreen = () => {
             <span className={`material-symbols-outlined text-[22px] ${activeTab === 'CONTACTS' ? 'fill' : ''}`}>
               contact_phone
             </span>
-            <span className="text-[11px] mt-0.5">{t.navContacts}</span>
+            <span className="text-[11px] mt-0.5">{lang === 'ta' ? 'தொடர்பு' : 'CONTACTS'}</span>
           </button>
 
           {/* Tab 4: PROFILE */}
@@ -918,7 +687,7 @@ export const CitizenScreen = () => {
             <span className={`material-symbols-outlined text-[22px] ${activeTab === 'PROFILE' ? 'fill' : ''}`}>
               person
             </span>
-            <span className="text-[11px] mt-0.5">{t.navProfile}</span>
+            <span className="text-[11px] mt-0.5">{lang === 'ta' ? 'சுயவிவரம்' : 'PROFILE'}</span>
           </button>
         </div>
 
@@ -935,7 +704,9 @@ export const CitizenScreen = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white w-full max-w-[380px] rounded-2xl border border-brand-cardBorder p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
-              <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">Edit Resident Profile</h3>
+              <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">
+                {lang === 'ta' ? 'சுயவிபரம் திருத்துக' : 'Edit Resident Profile'}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsEditModalOpen(false)}
@@ -947,7 +718,9 @@ export const CitizenScreen = () => {
 
             <form onSubmit={handleSaveProfile} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Full Name</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  {lang === 'ta' ? 'முழு பெயர்' : 'Full Name'}
+                </label>
                 <input
                   type="text"
                   value={editName}
@@ -957,7 +730,9 @@ export const CitizenScreen = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Phone Number</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  {lang === 'ta' ? 'தொலைபேசி எண்' : 'Phone Number'}
+                </label>
                 <input
                   type="text"
                   value={editPhone}
@@ -967,7 +742,9 @@ export const CitizenScreen = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Area / Locality</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  {lang === 'ta' ? 'பகுதி / முகவரி' : 'Area / Locality'}
+                </label>
                 <input
                   type="text"
                   value={editArea}
@@ -983,13 +760,13 @@ export const CitizenScreen = () => {
                   onClick={() => setIsEditModalOpen(false)}
                   className="flex-1 h-10 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
-                  Cancel
+                  {lang === 'ta' ? 'ரத்து' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   className="flex-1 h-10 rounded-xl bg-brand-red hover:bg-brand-redHover text-white text-xs font-bold shadow-md cursor-pointer"
                 >
-                  Save Profile
+                  {lang === 'ta' ? 'சேமிக்க' : 'Save Profile'}
                 </button>
               </div>
             </form>

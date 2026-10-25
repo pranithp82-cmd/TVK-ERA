@@ -225,6 +225,33 @@ export const OFFICIALS_DIRECTORY = [
   },
   {
     id: "OFF-004",
+    roleTa: "வார்டு 24 கள செயலாளர் / அதிகாரி",
+    roleEn: "Ward 24 Field Secretary / Officer",
+    nameTa: "எம். கார்த்திக் குமார் (M. Karthik Kumar)",
+    nameEn: "M. Karthik Kumar",
+    phone: "+91 98421 00024",
+    type: "WARD_MEMBER"
+  },
+  {
+    id: "OFF-005",
+    roleTa: "குடிநீர் வடிகால் வாரிய பொறியாளர் (TWAD)",
+    roleEn: "TWAD Water Supply Engineer",
+    nameTa: "பி. செந்தில்குமார் (P. Senthilkumar)",
+    nameEn: "P. Senthilkumar",
+    phone: "+91 94432 44556",
+    type: "WARD_MEMBER"
+  },
+  {
+    id: "OFF-006",
+    roleTa: "மின்வாரிய உதவி பொறியாளர் (TNEB)",
+    roleEn: "TNEB Electricity Junior Engineer",
+    nameTa: "கே. தர்மலிங்கம் (K. Dharmalingam)",
+    nameEn: "K. Dharmalingam",
+    phone: "+91 94430 88771",
+    type: "WARD_MEMBER"
+  },
+  {
+    id: "OFF-007",
     roleTa: "வாக்குச்சாவடி 142 பொறுப்பாளர்",
     roleEn: "Booth Incharge • V.O.C Street (Booth 142)",
     nameTa: "எஸ். கார்த்திகேயன் (S. Karthikeyan)",

@@ -8,27 +8,30 @@ export const GrassrootsScreen = () => {
     complaints,
     resolveComplaint,
     residents,
-    directives,
     showToast,
-    t,
     lang
   } = useApp();
 
-  // Active Tab: 'COMPLAINTS' | 'RESIDENTS' | 'DIRECTIVES' | 'OFFICER'
+  // Active Tab: 'COMPLAINTS' | 'RESIDENTS' | 'OFFICER' (Directives removed as requested)
   const [activeTab, setActiveTab] = useState('COMPLAINTS');
 
   // Filter mode for complaints: 'ALL' | 'PENDING' | 'COMPLETED'
   const [filterMode, setFilterMode] = useState('ALL');
 
+  // Active Complaint opened for Detail View (null = list view)
+  const [activeComplaintDetail, setActiveComplaintDetail] = useState(null);
+
   // Search query for residents directory
   const [residentSearchQuery, setResidentSearchQuery] = useState('');
 
-  // Resolution Modal State
-  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  // Resolution Form State inside Complaint Detail View
   const [actionNotes, setActionNotes] = useState('');
   const [proofPhotoPreview, setProofPhotoPreview] = useState(null);
   const [proofFileSize, setProofFileSize] = useState('');
-  const [modalError, setModalError] = useState('');
+  const [formError, setFormError] = useState('');
+
+  // Confirmation Modal State ("Yes, Confirma?")
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Officer Avatar state
   const [officerAvatar, setOfficerAvatar] = useState(null);
@@ -59,18 +62,20 @@ export const GrassrootsScreen = () => {
     );
   });
 
-  // Filter directives (ALL or this ward)
-  const relevantDirectives = directives.filter(
-    d => d.targetWard === 'ALL' || Number(d.targetWard) === Number(officerWard)
-  );
-
-  // Open Resolution Modal
-  const handleOpenResolutionModal = (complaint) => {
-    setSelectedComplaint(complaint);
-    setActionNotes('');
-    setProofPhotoPreview(null);
+  // Open Complaint Detail View
+  const handleOpenDetail = (complaint) => {
+    setActiveComplaintDetail(complaint);
+    setActionNotes(complaint.actionTaken || '');
+    setProofPhotoPreview(complaint.completionPhotoUrl || null);
     setProofFileSize('');
-    setModalError('');
+    setFormError('');
+    setShowConfirmModal(false);
+  };
+
+  // Close Detail View
+  const handleCloseDetail = () => {
+    setActiveComplaintDetail(null);
+    setShowConfirmModal(false);
   };
 
   // Handle Photo Picker for Resolution Proof
@@ -83,19 +88,41 @@ export const GrassrootsScreen = () => {
         setProofPhotoPreview(uploadEvent.target.result);
       };
       reader.readAsDataURL(file);
+      showToast(lang === 'ta' ? 'தீர்வு புகைப்படம் இணைக்கப்பட்டது' : 'Resolution photo attached', 'success');
     }
   };
 
-  // Submit Resolution
-  const handleConfirmResolution = () => {
+  // Trigger Confirmation Step
+  const handleInitiateResolution = (e) => {
+    e.preventDefault();
     if (!actionNotes.trim()) {
-      setModalError(lang === 'ta' ? 'நடவடிக்கை குறிப்புகளை உள்ளிடவும்.' : 'Please provide detailed action taken notes.');
+      setFormError(lang === 'ta' ? 'மேற்கொண்ட நடவடிக்கையை எழுதவும்.' : 'Please describe action taken notes.');
       return;
     }
+    setFormError('');
+    setShowConfirmModal(true);
+  };
 
-    if (selectedComplaint) {
-      resolveComplaint(selectedComplaint.id, actionNotes, proofPhotoPreview);
-      setSelectedComplaint(null);
+  // Final Confirmation: Mark Resolved
+  const handleFinalConfirmResolution = () => {
+    if (activeComplaintDetail) {
+      resolveComplaint(activeComplaintDetail.id, actionNotes, proofPhotoPreview);
+
+      // Update the active detail view with resolved state
+      setActiveComplaintDetail(prev => ({
+        ...prev,
+        status: 'COMPLETED',
+        actionTaken: actionNotes,
+        completionPhotoUrl: proofPhotoPreview || prev.completionPhotoUrl
+      }));
+
+      setShowConfirmModal(false);
+      showToast(
+        lang === 'ta' 
+          ? 'புகார் தீர்க்கப்பட்டது! குடிமகனுக்கு அறிவிப்பு அனுப்பப்பட்டது.' 
+          : 'Complaint resolved! Notification sent to resident.', 
+        'success'
+      );
     }
   };
 
@@ -108,215 +135,481 @@ export const GrassrootsScreen = () => {
         setOfficerAvatar(uploadEvent.target.result);
       };
       reader.readAsDataURL(file);
-      showToast('Profile photo updated', 'success');
+      showToast(lang === 'ta' ? 'சுயவிவரப் படம் மாற்றப்பட்டது' : 'Profile photo updated', 'success');
     }
   };
 
   return (
     <div className="flex-1 flex flex-col max-w-[420px] mx-auto w-full pb-20 select-none">
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5">
-
-        {/* ============================================================== */}
-        {/* WARD GRASSROOTS STATUS CARD                                    */}
-        {/* ============================================================== */}
-        <section className="bg-white rounded-2xl p-4 shadow-xs border border-amber-200/90 relative overflow-hidden">
-          <div className="absolute -right-8 -top-8 w-24 h-24 bg-amber-100/60 rounded-full blur-xl pointer-events-none"></div>
-
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <span className="bg-amber-100 border border-amber-300 text-amber-950 font-black text-xs px-2.5 py-0.5 rounded-full">
-                  Ward {officerWard}
-                </span>
-                <span className="inline-flex items-center text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
-                  <span>{t.officerStatusActive}</span>
-                </span>
-              </div>
-              <h2 className="font-extrabold text-gray-900 text-base leading-tight">
-                {currentUser?.name || 'M. Karthik Kumar'}
-              </h2>
-              <p className="text-xs text-gray-500 font-medium">
-                {currentUser?.designation || `Ward ${officerWard} Coordinator • Singanallur Central`}
-              </p>
-            </div>
-
-            <div className="text-right">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
-                {t.lblJurisdiction}
-              </span>
-              <span className="text-xs font-extrabold text-brand-red">Singanallur (121)</span>
-            </div>
-          </div>
-
-          {/* Live Operations Metrics Strip */}
-          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-amber-100 text-center">
-            <div className="bg-red-50 rounded-xl p-1.5 border border-red-200">
-              <div className="text-[10px] font-bold text-brand-red uppercase">{t.lblNeedsAction}</div>
-              <div className="text-sm font-black text-brand-redText mt-0.5">{pendingCount}</div>
-            </div>
-            <div className="bg-amber-50 rounded-xl p-1.5 border border-amber-200">
-              <div className="text-[10px] font-bold text-amber-900 uppercase">{t.lblTotalResidents}</div>
-              <div className="text-sm font-black text-amber-900 mt-0.5">{wardResidents.length}</div>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-1.5 border border-slate-200">
-              <div className="text-[10px] font-bold text-slate-600 uppercase">{t.lblDirectives}</div>
-              <div className="text-sm font-black text-slate-800 mt-0.5">{relevantDirectives.length}</div>
-            </div>
-          </div>
-        </section>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
 
         {/* ============================================================== */}
         {/* TAB 1: GRASSROOTS COMPLAINTS                                  */}
         {/* ============================================================== */}
         {activeTab === 'COMPLAINTS' && (
-          <div className="space-y-3 animate-fade-in">
-            {/* Filter Pills Bar */}
-            <div className="flex items-center justify-between bg-white p-1.5 rounded-xl border border-amber-200 shadow-2xs text-xs font-bold gap-1">
-              <button
-                type="button"
-                onClick={() => setFilterMode('ALL')}
-                className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
-                  filterMode === 'ALL'
-                    ? 'bg-brand-red text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <span>{t.filterAll}</span> ({wardComplaints.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterMode('PENDING')}
-                className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
-                  filterMode === 'PENDING'
-                    ? 'bg-brand-red text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <span>{t.filterInProgress}</span> ({pendingCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterMode('COMPLETED')}
-                className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
-                  filterMode === 'COMPLETED'
-                    ? 'bg-brand-red text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <span>{t.filterCompleted}</span> ({completedCount})
-              </button>
-            </div>
-
-            {/* Complaints List Container */}
-            <div className="space-y-3">
-              {displayedComplaints.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center border border-amber-200 text-gray-500 space-y-2">
-                  <span className="material-symbols-outlined text-4xl text-amber-400">inventory_2</span>
-                  <p className="text-xs font-bold">
-                    {lang === 'ta' ? 'புகார்கள் எதுவும் இல்லை' : 'No grievances found in this filter'}
-                  </p>
+          <div className="space-y-4 animate-fade-in">
+            {/* If an individual complaint is opened, show DEDICATED SEPARATE DETAIL PAGE */}
+            {activeComplaintDetail ? (
+              <div className="space-y-4 animate-fade-in">
+                {/* Back Button & Header */}
+                <div className="flex items-center justify-between pb-1">
+                  <button
+                    type="button"
+                    onClick={handleCloseDetail}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-brand-red">arrow_back</span>
+                    <span>{lang === 'ta' ? 'பின்செல்க (Back)' : 'Back to List'}</span>
+                  </button>
+                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-black text-slate-700">
+                    #{activeComplaintDetail.id}
+                  </span>
                 </div>
-              ) : (
-                displayedComplaints.map(c => {
-                  const isCompleted = c.status === 'COMPLETED';
 
-                  return (
-                    <div
-                      key={c.id}
-                      className={`bg-white rounded-2xl p-4 shadow-xs border transition hover:border-brand-red space-y-2.5 ${
-                        isCompleted ? 'border-emerald-300 bg-emerald-50/20' : 'border-amber-200'
+                {/* 1. Person Details Card (யார் கம்ப்ளைன்ட் பண்ணிருக்கா) */}
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[17px] text-brand-red">person</span>
+                      <span>{lang === 'ta' ? 'புகாரளித்த குடிமகன் விவரம்' : 'Resident Person Details'}</span>
+                    </span>
+                    <span className="text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                      Ward {activeComplaintDetail.ward}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-black text-slate-900 leading-tight truncate">
+                        {activeComplaintDetail.residentName}
+                      </h3>
+                      <p className="text-xs text-slate-600 font-medium flex items-center gap-1 mt-1">
+                        <span className="material-symbols-outlined text-[15px] text-brand-red">location_on</span>
+                        <span>{activeComplaintDetail.area}</span>
+                      </p>
+                      {activeComplaintDetail.userPhone && (
+                        <p className="text-xs font-mono font-bold text-slate-800 mt-1">
+                          {activeComplaintDetail.userPhone}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Direct Contact Buttons */}
+                    {activeComplaintDetail.userPhone && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <a
+                          href={`tel:${activeComplaintDetail.userPhone.replace(/[^0-9+]/g, '')}`}
+                          className="w-10 h-10 rounded-xl bg-brand-red hover:bg-brand-redHover active:scale-95 text-white flex items-center justify-center shadow-md shadow-red-500/20 cursor-pointer"
+                          title="Call Resident"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">call</span>
+                        </a>
+                        <a
+                          href={`sms:${activeComplaintDetail.userPhone.replace(/[^0-9+]/g, '')}`}
+                          className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 flex items-center justify-center shadow-2xs active:scale-95 cursor-pointer"
+                          title="Message Resident"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">chat</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Complaint Details Card (என்ன கம்ப்ளைன்ட் பண்ணிருக்காங்க) */}
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[17px] text-brand-red">description</span>
+                      <span>{lang === 'ta' ? 'புகார் விவரம்' : 'Complaint Description'}</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px] text-slate-400">schedule</span>
+                      <span>{activeComplaintDetail.createdAt}</span>
+                    </span>
+                  </div>
+
+                  {/* Complaint Text */}
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs sm:text-sm text-slate-800 leading-relaxed font-medium">
+                    {activeComplaintDetail.description}
+                  </div>
+
+                  {/* Resident Attached Photo */}
+                  {activeComplaintDetail.photoUrl && (
+                    <div className="rounded-xl overflow-hidden border border-slate-200">
+                      <div className="bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-700 border-b border-slate-200 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[15px] text-brand-red">image</span>
+                        <span>{lang === 'ta' ? 'குடிமகன் இணைத்த புகைப்படம்' : 'Issue Photo Attached by Resident'}</span>
+                      </div>
+                      <img
+                        src={activeComplaintDetail.photoUrl}
+                        alt="Resident Issue"
+                        className="w-full h-44 object-cover"
+                      />
+                    </div>
+                  )}
+
+                  {/* Resident Attached Voice Note */}
+                  {activeComplaintDetail.hasAudio && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 text-brand-red border border-red-200 text-xs font-bold">
+                      <span className="material-symbols-outlined text-[17px]">mic</span>
+                      <span>{lang === 'ta' ? 'குடிமகன் குரல் பதிவு (Voice Note 0:14)' : 'Voice Note Attached (0:14)'}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Action & Resolution Section (தீர்க்கும் பகுதி) */}
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[17px] text-emerald-600">task_alt</span>
+                      <span>{lang === 'ta' ? 'கள நடவடிக்கை & தீர்வு' : 'Resolution & Action'}</span>
+                    </span>
+                    <span
+                      className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                        activeComplaintDetail.status === 'COMPLETED'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-900 border border-amber-200'
                       }`}
                     >
-                      {/* Header: ID + Status Badge */}
-                      <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-black text-gray-800 bg-gray-100 px-2 py-0.5 rounded">
-                            #{c.id}
-                          </span>
-                          <span className="text-[10px] text-gray-400 font-semibold">{c.createdAt || 'Recent'}</span>
-                        </div>
-                        <span
-                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                            isCompleted
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-red-100 text-brand-red border border-red-300 animate-pulse'
-                          }`}
-                        >
-                          {isCompleted
-                            ? (lang === 'ta' ? 'தீர்க்கப்பட்டது ✓' : 'RESOLVED')
-                            : (lang === 'ta' ? 'நடவடிக்கை தேவை' : 'NEEDS ACTION')}
-                        </span>
-                      </div>
+                      {activeComplaintDetail.status === 'COMPLETED'
+                        ? (lang === 'ta' ? 'தீர்க்கப்பட்டது ✓' : 'Solved ✓')
+                        : (lang === 'ta' ? 'செயலில் உள்ளது' : 'In Progress')}
+                    </span>
+                  </div>
 
-                      {/* Resident & Location */}
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-bold text-gray-900 text-xs">{c.residentName}</h4>
-                          <p className="text-[11px] text-gray-500 flex items-center mt-0.5">
-                            <span className="material-symbols-outlined text-[13px] text-brand-red mr-1">location_on</span>
-                            <span>{c.area}</span>
-                          </p>
+                  {/* If ALREADY COMPLETED */}
+                  {activeComplaintDetail.status === 'COMPLETED' ? (
+                    <div className="space-y-3">
+                      {activeComplaintDetail.actionTaken && (
+                        <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 font-medium leading-relaxed">
+                          <strong className="block text-emerald-900 font-bold mb-1">
+                            {lang === 'ta' ? 'மேற்கொண்ட நடவடிக்கை:' : 'Action Taken Notes:'}
+                          </strong>
+                          {activeComplaintDetail.actionTaken}
                         </div>
+                      )}
 
-                        {/* Call Resident Action */}
-                        {c.userPhone && (
-                          <a
-                            href={`tel:${c.userPhone}`}
-                            className="flex items-center space-x-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-gray-900 border border-amber-300 rounded-lg text-[11px] font-bold active:scale-95 transition shadow-2xs"
-                          >
-                            <span className="material-symbols-outlined text-sm text-emerald-600">call</span>
-                            <span>{t.callResidentBtn}</span>
-                          </a>
+                      {/* Display Resolution Photo */}
+                      {activeComplaintDetail.completionPhotoUrl && (
+                        <div className="rounded-xl overflow-hidden border border-emerald-300 shadow-xs">
+                          <div className="bg-emerald-600 text-white px-3 py-1.5 text-[10px] font-bold flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[15px]">verified</span>
+                              <span>{lang === 'ta' ? 'தீர்வு புகைப்படம் (வார்டு செயலாளர்)' : 'Resolution Photo (Ward Officer)'}</span>
+                            </span>
+                            <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-bold">Verified Work</span>
+                          </div>
+                          <img
+                            src={activeComplaintDetail.completionPhotoUrl}
+                            alt="Resolution Work"
+                            className="w-full h-44 object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* If IN PROGRESS / PENDING: Resolution Form */
+                    <form onSubmit={handleInitiateResolution} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-800 uppercase mb-1">
+                          {lang === 'ta' ? 'மேற்கொண்ட நடவடிக்கை குறிப்புகள் *' : 'Action Taken Notes *'}
+                        </label>
+                        <textarea
+                          rows="3"
+                          value={actionNotes}
+                          onChange={(e) => setActionNotes(e.target.value)}
+                          placeholder={
+                            lang === 'ta'
+                              ? 'களப்பணி முடிக்கப்பட்ட விபரத்தை எழுதவும் (எ.கா. குடிநீர் குழாய் உடைப்பு சீரமைக்கப்பட்டது)...'
+                              : 'Describe the work completed on ground (e.g. Fixed water pipeline leakage and restored normal flow)...'
+                          }
+                          className="w-full p-3 text-xs rounded-xl border border-slate-200 bg-white font-medium focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none shadow-2xs resize-none"
+                          required
+                        ></textarea>
+                        {formError && (
+                          <p className="text-[10px] text-brand-red font-bold mt-1">{formError}</p>
                         )}
                       </div>
 
-                      {/* Category & Description */}
-                      <div className="bg-[#FFFBEB] rounded-xl p-2.5 border border-amber-200/80">
-                        <span className="text-[10px] font-extrabold text-brand-red uppercase tracking-wide block mb-0.5">
-                          {c.category}
-                        </span>
-                        <p className="text-xs text-gray-800 leading-relaxed">{c.description}</p>
+                      {/* Work Completion Photo Upload */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-800 uppercase mb-1">
+                          {lang === 'ta' ? 'தீர்வு புகைப்படம் பதிவேற்ற *' : 'Resolution Work Photo *'}
+                        </label>
+
+                        {!proofPhotoPreview ? (
+                          <label className="h-28 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 hover:border-brand-red bg-slate-50 cursor-pointer p-2 text-center transition-colors">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleProofImageChange}
+                            />
+                            <span className="material-symbols-outlined text-brand-red text-3xl">add_a_photo</span>
+                            <span className="text-xs font-bold text-slate-800 mt-1">
+                              {lang === 'ta' ? 'தீர்வு புகைப்படம் இணைக்க' : 'Upload Completion Photo'}
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              {lang === 'ta' ? 'களப்பணி முடிந்த புகைப்படத்தை இணைக்கவும்' : 'Attach proof photo of completed work'}
+                            </span>
+                          </label>
+                        ) : (
+                          <div className="relative rounded-xl overflow-hidden border border-emerald-300">
+                            <img src={proofPhotoPreview} alt="Work Proof" className="w-full h-40 object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setProofPhotoPreview(null)}
+                              className="absolute top-2 right-2 w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-700 cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">close</span>
+                            </button>
+                            <div className="absolute bottom-0 inset-x-0 bg-black/70 px-2.5 py-1 text-[10px] text-white flex justify-between">
+                              <span>{lang === 'ta' ? 'தீர்வு படம் தயாராக உள்ளது' : 'Work Proof Attached'}</span>
+                              <span>{proofFileSize}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Optional Photo Attachment */}
-                      {c.photoUrl && (
-                        <div className="rounded-xl overflow-hidden border border-gray-200">
-                          <img src={c.photoUrl} alt="Complaint Attachment" className="w-full h-32 object-cover" />
-                        </div>
-                      )}
+                      {/* Mark as Solved Button (Triggers Confirmation) */}
+                      <button
+                        type="submit"
+                        className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-[0.99] text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[19px]">task_alt</span>
+                        <span>{lang === 'ta' ? 'முடிந்தது / தீர்க்கப்பட்டது (Mark as Solved)' : 'Mark as Solved'}</span>
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* If viewing the complaints list: CLEAN, SPACIOUS, BEAUTIFUL CARDS */
+              <>
+                {/* Header Title */}
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
+                    <span className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></span>
+                    <span>{lang === 'ta' ? 'வார்டு 24 களப் புகார்கள்' : 'Ward 24 Field Grievances'}</span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                    {lang === 'ta' ? 'பொதுமக்கள் புகார்கள் பட்டியல்' : 'Citizens Grievance Directory'}
+                  </h2>
+                </div>
 
-                      {/* Action CTA or Resolved Outcome */}
-                      {isCompleted ? (
-                        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200 space-y-1.5">
-                          <div className="flex items-center space-x-1.5 text-emerald-900 font-extrabold text-xs">
-                            <span className="material-symbols-outlined text-emerald-600 text-sm">verified</span>
-                            <span>{t.resolvedStatusTitle}</span>
-                          </div>
-                          {c.actionTaken && (
-                            <div className="text-[11px] text-gray-700">
-                              <strong className="font-bold text-gray-900">{t.actionTakenLabel}</strong> {c.actionTaken}
-                            </div>
-                          )}
-                          {c.completionPhotoUrl && (
-                            <div className="mt-2 rounded-lg overflow-hidden border border-emerald-300">
-                              <img src={c.completionPhotoUrl} alt="Completion Proof" className="w-full h-32 object-cover" />
-                              <p className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 font-bold">
-                                Verified Completion Proof Attached
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenResolutionModal(c)}
-                          className="w-full py-2.5 bg-brand-red hover:bg-brand-redHover active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-md shadow-red-500/20 flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                {/* Filter Pills Bar */}
+                <div className="flex items-center justify-between bg-white p-1 rounded-xl border border-slate-200 shadow-2xs text-xs font-bold gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setFilterMode('ALL')}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
+                      filterMode === 'ALL'
+                        ? 'bg-brand-red text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>{lang === 'ta' ? 'அனைத்தும்' : 'ALL'}</span> ({wardComplaints.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterMode('PENDING')}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
+                      filterMode === 'PENDING'
+                        ? 'bg-brand-red text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>{lang === 'ta' ? 'செயலில்' : 'IN PROGRESS'}</span> ({pendingCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterMode('COMPLETED')}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition cursor-pointer ${
+                      filterMode === 'COMPLETED'
+                        ? 'bg-brand-red text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>{lang === 'ta' ? 'தீர்க்கப்பட்டவை' : 'SOLVED'}</span> ({completedCount})
+                  </button>
+                </div>
+
+                {/* Clean, Spacious Complaint Cards */}
+                <div className="space-y-3">
+                  {displayedComplaints.length === 0 ? (
+                    <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 text-slate-500 space-y-2">
+                      <span className="material-symbols-outlined text-4xl text-amber-400">inventory_2</span>
+                      <p className="text-xs font-bold">
+                        {lang === 'ta' ? 'புகார்கள் எதுவும் இல்லை' : 'No grievances found in this filter'}
+                      </p>
+                    </div>
+                  ) : (
+                    displayedComplaints.map(c => {
+                      const isCompleted = c.status === 'COMPLETED';
+
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => handleOpenDetail(c)}
+                          className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs hover:border-amber-300 hover:shadow-md transition-all cursor-pointer space-y-3"
                         >
-                          <span className="material-symbols-outlined text-sm">fact_check</span>
-                          <span>{t.takeActionBtn}</span>
-                        </button>
-                      )}
+                          {/* Top Row: Ward + Status Badge */}
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900">
+                              <span>Ward {c.ward}</span>
+                            </span>
+
+                            <span
+                              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                                isCompleted
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : 'bg-amber-50 text-amber-900 border border-amber-200'
+                              }`}
+                            >
+                              {isCompleted ? (
+                                <>
+                                  <span className="material-symbols-outlined text-[14px] text-emerald-600">check_circle</span>
+                                  <span>{lang === 'ta' ? 'தீர்க்கப்பட்டது ✓' : 'Solved ✓'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                  <span>{lang === 'ta' ? 'செயலில் உள்ளது' : 'In Progress'}</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Middle: Resident Name & Area / Street */}
+                          <div className="space-y-1">
+                            <h3 className="font-black text-slate-900 text-base sm:text-lg tracking-tight leading-snug">
+                              {c.residentName}
+                            </h3>
+                            <div className="text-xs text-slate-600 flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-[15px] text-brand-red shrink-0">location_on</span>
+                              <span className="font-medium truncate">{c.area}</span>
+                            </div>
+                          </div>
+
+                          {/* Bottom Row: Date/Time + Complaint ID + Call to Action */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2 text-slate-400 font-medium text-[11px]">
+                              <span className="font-mono text-slate-600 font-bold bg-slate-100 px-1.5 py-0.5 rounded">
+                                #{c.id}
+                              </span>
+                              <span className="flex items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                <span>{c.createdAt || 'Recent'}</span>
+                              </span>
+                            </div>
+
+                            <div className="text-xs font-bold text-brand-red flex items-center gap-0.5 hover:underline">
+                              <span>{lang === 'ta' ? 'விவரம் பார்க்க' : 'View Details'}</span>
+                              <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 2: WARD RESIDENTS DIRECTORY                                */}
+        {/* ============================================================== */}
+        {activeTab === 'RESIDENTS' && (
+          <div className="space-y-3.5 animate-fade-in">
+            {/* Header */}
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-brand-red"></span>
+                <span>Ward 24 • Singanallur</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                {lang === 'ta' ? 'குடியிருப்பாளர்கள் பட்டியல்' : 'Residents Directory'}
+              </h2>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3.5 top-2.5 text-slate-400 text-xl pointer-events-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={residentSearchQuery}
+                onChange={(e) => setResidentSearchQuery(e.target.value)}
+                placeholder={lang === 'ta' ? 'குடியிருப்பாளர் பெயர், தொலைபேசி அல்லது தெரு தேடுக...' : 'Search residents by name, phone, street...'}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent shadow-2xs"
+              />
+            </div>
+
+            {/* Ward Directory Count Banner */}
+            <div className="flex items-center justify-between px-1 text-xs font-bold text-slate-600">
+              <span>{lang === 'ta' ? 'பதிவு செய்யப்பட்ட வாக்காளர்கள்' : 'Registered Citizens'}</span>
+              <span className="bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-md text-[10px]">
+                {displayedResidents.length} {lang === 'ta' ? 'நபர்கள்' : 'Members'}
+              </span>
+            </div>
+
+            {/* Residents List */}
+            <div className="space-y-2.5">
+              {displayedResidents.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 text-center border border-slate-200 text-slate-500">
+                  <span className="material-symbols-outlined text-3xl text-slate-400">person_search</span>
+                  <p className="text-xs font-bold mt-1">
+                    {lang === 'ta' ? 'குடியிருப்பாளர் காணப்படவில்லை' : 'No matching residents found'}
+                  </p>
+                </div>
+              ) : (
+                displayedResidents.map(user => {
+                  const userComplaints = complaints.filter(c => c.residentName === user.name || (user.phone && c.userPhone === user.phone));
+
+                  return (
+                    <div
+                      key={user.id}
+                      className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center font-black text-amber-900 text-sm shrink-0">
+                          {user.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-slate-900 text-xs truncate">{user.name}</h4>
+                          <p className="text-[10px] text-slate-500 truncate mt-0.5">{user.area}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-mono font-bold text-slate-700">{user.phone}</span>
+                            {userComplaints.length > 0 && (
+                              <span className="text-[9px] bg-red-50 text-brand-red font-bold px-1.5 py-0.2 rounded border border-red-200">
+                                {userComplaints.length} {lang === 'ta' ? 'மனு' : 'grievances'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Contact Actions: Call & Message */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <a
+                          href={`tel:${user.phone.replace(/[^0-9+]/g, '')}`}
+                          className="w-9 h-9 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl flex items-center justify-center text-xs font-bold active:scale-95 transition shadow-2xs cursor-pointer"
+                          title="Call"
+                        >
+                          <span className="material-symbols-outlined text-[17px]">call</span>
+                        </a>
+                        <a
+                          href={`sms:${user.phone.replace(/[^0-9+]/g, '')}`}
+                          className="w-9 h-9 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-xl flex items-center justify-center text-xs font-bold active:scale-95 transition shadow-2xs cursor-pointer"
+                          title="SMS"
+                        >
+                          <span className="material-symbols-outlined text-[17px]">chat</span>
+                        </a>
+                      </div>
                     </div>
                   );
                 })
@@ -326,147 +619,42 @@ export const GrassrootsScreen = () => {
         )}
 
         {/* ============================================================== */}
-        {/* TAB 2: WARD RESIDENTS DIRECTORY                                */}
-        {/* ============================================================== */}
-        {activeTab === 'RESIDENTS' && (
-          <div className="space-y-3 animate-fade-in">
-            {/* Search Bar */}
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3.5 top-2.5 text-gray-400 text-xl pointer-events-none">
-                search
-              </span>
-              <input
-                type="text"
-                value={residentSearchQuery}
-                onChange={(e) => setResidentSearchQuery(e.target.value)}
-                placeholder={t.searchResidentsPlaceholder}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-amber-200 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent shadow-2xs"
-              />
-            </div>
-
-            {/* Ward Directory Count Banner */}
-            <div className="flex items-center justify-between px-1 text-xs font-bold text-gray-600">
-              <span>{t.wardDirectoryTitle}</span>
-              <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md text-[10px]">
-                {displayedResidents.length} {lang === 'ta' ? 'சரிபார்க்கப்பட்ட குடியிருப்பாளர்கள்' : 'Verified Residents'}
-              </span>
-            </div>
-
-            {/* Residents List */}
-            <div className="space-y-2.5">
-              {displayedResidents.length === 0 ? (
-                <div className="bg-white rounded-2xl p-6 text-center border border-amber-200 text-gray-500">
-                  <span className="material-symbols-outlined text-3xl text-gray-400">person_search</span>
-                  <p className="text-xs font-bold mt-1">
-                    {lang === 'ta' ? 'குடியிருப்பாளர் காணப்படவில்லை' : 'No matching residents found'}
-                  </p>
-                </div>
-              ) : (
-                displayedResidents.map(user => (
-                  <div
-                    key={user.id}
-                    className="bg-white rounded-2xl p-3.5 border border-amber-200 shadow-2xs flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center font-black text-amber-900 text-sm">
-                        {user.name.charAt(0)}
-                      </div>
-                      <div>
-                        <h4 className="font-extrabold text-gray-900 text-xs">{user.name}</h4>
-                        <p className="text-[10px] text-gray-500 mt-0.5">{user.area}</p>
-                        <span className="inline-block mt-0.5 text-[9px] font-mono text-gray-400">{user.phone}</span>
-                      </div>
-                    </div>
-
-                    <a
-                      href={`tel:${user.phone}`}
-                      className="flex items-center space-x-1 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold active:scale-95 transition shadow-2xs"
-                    >
-                      <span className="material-symbols-outlined text-sm">phone_in_talk</span>
-                      <span>{lang === 'ta' ? 'அழைக்க' : 'Call'}</span>
-                    </a>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ============================================================== */}
-        {/* TAB 3: GUIDANCE & DIRECTIVES                                  */}
-        {/* ============================================================== */}
-        {activeTab === 'DIRECTIVES' && (
-          <div className="space-y-3 animate-fade-in">
-            {/* Banner */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start space-x-2.5 text-xs text-amber-900">
-              <span className="material-symbols-outlined text-brand-red text-xl flex-none">campaign</span>
-              <div>
-                <span className="font-extrabold block">OFFICIAL LEADERSHIP DIRECTIVES</span>
-                <p className="text-[11px] text-amber-800">
-                  Direct instructions from MLA Constituency Office & Ward District Secretary.
-                </p>
-              </div>
-            </div>
-
-            {/* Directive Cards List */}
-            <div className="space-y-3">
-              {relevantDirectives.map(d => (
-                <div key={d.id} className="bg-white rounded-2xl p-4 border border-amber-200 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-brand-red bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-                      {d.role}
-                    </span>
-                    <span className="text-[10px] text-gray-400 font-semibold">{d.date}</span>
-                  </div>
-
-                  <h4 className="font-black text-gray-900 text-xs">
-                    {(lang === 'ta' && d.titleTa) ? d.titleTa : d.title}
-                  </h4>
-                  <p className="text-xs text-gray-700 leading-relaxed bg-[#FFFBEB] p-2.5 rounded-xl border border-amber-100">
-                    {d.message}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-1 text-[10px] text-gray-500 font-medium">
-                    <span>By: <strong className="text-gray-800">{d.createdBy}</strong></span>
-                    <span className="text-amber-800 bg-amber-100 px-2 py-0.5 rounded font-bold">
-                      Target: {d.targetWard === 'ALL' ? 'All AC 121' : `Ward ${d.targetWard}`}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ============================================================== */}
-        {/* TAB 4: OFFICER ID BADGE                                        */}
+        {/* TAB 3: OFFICER ID (CLEAN WHITE CARD, NO ORANGE/ACTIVE STRIP)  */}
         {/* ============================================================== */}
         {activeTab === 'OFFICER' && (
-          <div className="space-y-3 animate-fade-in">
-            {/* Official ID Badge Card */}
-            <div className="bg-white border-2 border-brand-red rounded-2xl p-5 shadow-lg relative overflow-hidden text-center">
-              <div className="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-brand-red via-brand-yellow to-brand-red"></div>
+          <div className="space-y-4 animate-fade-in">
+            {/* Header */}
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-yellowSoft border border-brand-yellow text-amber-900 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-brand-red"></span>
+                <span>Ward 24 Field Official</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                {lang === 'ta' ? 'அதிகாரி அடையாள அட்டை' : 'Officer ID Credentials'}
+              </h2>
+            </div>
 
+            {/* Official ID Badge Card: Pure White, Clean, No Orange Strip */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm text-center space-y-4">
               {/* Avatar with Photo Controls */}
-              <div className="mt-2 flex flex-col items-center justify-center">
+              <div className="flex flex-col items-center justify-center">
                 <label className="relative group cursor-pointer">
                   <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-                  <div className="w-24 h-24 bg-amber-50 border-2 border-amber-300 rounded-full flex items-center justify-center p-2 shadow-inner relative overflow-hidden">
+                  <div className="w-24 h-24 bg-slate-50 border border-slate-200 rounded-full flex items-center justify-center p-1 shadow-xs relative overflow-hidden">
                     {officerAvatar ? (
                       <img src={officerAvatar} alt="Officer" className="w-full h-full object-cover rounded-full" />
                     ) : (
-                      <span className="material-symbols-outlined text-4xl text-brand-red">shield_person</span>
+                      <span className="material-symbols-outlined text-5xl text-brand-red">shield_person</span>
                     )}
-                    <span className="absolute bottom-1 right-2 bg-emerald-500 border-2 border-white w-4 h-4 rounded-full z-10"></span>
                   </div>
                   <div className="absolute bottom-0 right-0 p-1.5 bg-brand-red hover:bg-brand-redHover text-white rounded-full shadow-md border-2 border-white active:scale-95 transition flex items-center justify-center">
                     <span className="material-symbols-outlined text-sm">photo_camera</span>
                   </div>
                 </label>
 
-                {/* Upload Buttons */}
-                <div className="mt-3 flex items-center space-x-1.5 bg-amber-50/80 p-1.5 rounded-xl border border-amber-200">
-                  <label className="flex items-center space-x-1 px-2 py-1 bg-white hover:bg-amber-100 text-gray-800 border border-amber-200 rounded-lg text-[10px] font-bold active:scale-95 transition shadow-2xs cursor-pointer">
+                {/* Upload / Remove Buttons */}
+                <div className="mt-2.5 flex items-center space-x-1.5">
+                  <label className="flex items-center space-x-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-lg text-[10px] font-bold active:scale-95 transition shadow-2xs cursor-pointer">
                     <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                     <span className="material-symbols-outlined text-[13px] text-brand-red">upload_file</span>
                     <span>Upload</span>
@@ -475,74 +663,62 @@ export const GrassrootsScreen = () => {
                     <button
                       type="button"
                       onClick={() => setOfficerAvatar(null)}
-                      className="flex items-center space-x-1 px-2 py-1 bg-white hover:bg-red-50 text-gray-600 hover:text-brand-red border border-amber-200 rounded-lg text-[10px] font-bold active:scale-95 transition shadow-2xs"
+                      className="flex items-center space-x-1 px-2.5 py-1 bg-white hover:bg-red-50 text-slate-600 hover:text-brand-red border border-slate-200 rounded-lg text-[10px] font-bold active:scale-95 transition shadow-2xs cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[13px] text-gray-400">delete</span>
+                      <span className="material-symbols-outlined text-[13px] text-slate-400">delete</span>
                       <span>Remove</span>
                     </button>
                   )}
                 </div>
               </div>
 
-              <h3 className="font-black text-gray-900 text-lg mt-3">
-                {currentUser?.name || 'M. Karthik Kumar'}
-              </h3>
-              <p className="text-xs font-bold text-brand-red uppercase tracking-wider">
-                {t.officerIdTitle}
-              </p>
-              <div className="inline-block mt-1 bg-gray-100 text-gray-700 text-[11px] font-semibold px-3 py-0.5 rounded-full">
-                ID: <span className="font-mono font-bold text-gray-900">{currentUser?.officerId || 'TVK-GR-121-024'}</span>
+              {/* Officer Details */}
+              <div>
+                <h3 className="font-black text-slate-900 text-lg leading-tight">
+                  {currentUser?.name || 'M. Karthik Kumar'}
+                </h3>
+                <p className="text-xs font-bold text-slate-500 mt-0.5">
+                  {lang === 'ta' ? 'வார்டு 24 கள ஒருங்கிணைப்பாளர்' : 'Ward 24 Field Coordinator'}
+                </p>
+                <div className="inline-block mt-2 bg-slate-100 text-slate-700 text-[11px] font-semibold px-3 py-1 rounded-full border border-slate-200">
+                  ID: <span className="font-mono font-bold text-slate-900">{currentUser?.officerId || 'TVK-GR-121-024'}</span>
+                </div>
               </div>
 
               {/* Credential Table */}
-              <div className="mt-5 space-y-2 text-left text-xs border-t border-gray-100 pt-3">
-                <div className="flex justify-between py-1 border-b border-gray-50">
-                  <span className="text-gray-500 font-medium">Constituency</span>
-                  <span className="font-bold text-gray-800">Singanallur (121)</span>
+              <div className="space-y-2 text-left text-xs border-t border-slate-100 pt-3">
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Constituency</span>
+                  <span className="font-bold text-slate-800">Singanallur (121)</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-gray-50">
-                  <span className="text-gray-500 font-medium">District</span>
-                  <span className="font-bold text-gray-800">Coimbatore Urban</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-gray-50">
-                  <span className="text-gray-500 font-medium">Assigned Ward</span>
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Assigned Ward</span>
                   <span className="font-black text-brand-red">Ward {officerWard} (V.O.C Street)</span>
                 </div>
-                <div className="flex justify-between py-1 border-b border-gray-50">
-                  <span className="text-gray-500 font-medium">Official Contact</span>
-                  <a href="tel:+919842100024" className="font-bold text-blue-600 underline">
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Official Contact</span>
+                  <a href="tel:+919842100024" className="font-bold text-slate-800">
                     {currentUser?.phone || '+91 98421 00024'}
                   </a>
                 </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-gray-500 font-medium">RBAC Role</span>
-                  <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    GRASSROOT OFFICIAL
+                <div className="flex justify-between py-1.5">
+                  <span className="text-slate-500 font-medium">Role Authority</span>
+                  <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    GRASSROOT FIELD OFFICER
                   </span>
                 </div>
               </div>
 
-              {/* TVK Security Seal */}
-              <div className="mt-4 pt-3 border-t border-dashed border-gray-200 flex items-center justify-between text-[11px] text-gray-500">
+              {/* TVK Whistle Seal */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                 <div className="flex items-center space-x-1.5 text-left">
                   <img src={TVK_WHISTLE_LOGO_URL} alt="Seal" className="w-5 h-5 object-contain" />
-                  <span className="font-bold text-gray-700">TVK ERA Verified Portal</span>
+                  <span className="font-bold text-slate-700">TVK ERA Official</span>
                 </div>
                 <span className="text-emerald-700 font-bold flex items-center">
                   <span className="material-symbols-outlined text-sm mr-0.5">verified</span> AUTHENTICATED
                 </span>
               </div>
-            </div>
-
-            {/* Access Control Policy Note */}
-            <div className="p-3 bg-white rounded-xl border border-gray-200 text-xs text-gray-600 space-y-1">
-              <div className="font-bold text-gray-800 flex items-center space-x-1">
-                <span className="material-symbols-outlined text-brand-red text-sm">lock</span>
-                <span>{t.securityPolicyTitle}</span>
-              </div>
-              <p className="text-[11px]">
-                {t.securityPolicyBody}
-              </p>
             </div>
           </div>
         )}
@@ -550,105 +726,50 @@ export const GrassrootsScreen = () => {
       </div>
 
       {/* ============================================================== */}
-      {/* RESOLUTION MODAL / SLIDE-OVER (TAKE ACTION & RESOLVE)         */}
+      {/* CONFIRMATION MODAL ("Yes, Confirma?")                          */}
       {/* ============================================================== */}
-      {selectedComplaint && (
-        <div className="fixed inset-0 z-[10000] bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
-          <div className="w-full max-w-[420px] bg-white rounded-t-[28px] sm:rounded-2xl max-h-[85vh] overflow-y-auto p-5 shadow-2xl border-t sm:border border-amber-200 space-y-4">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center space-x-2">
-                <span className="material-symbols-outlined text-brand-red text-2xl">verified</span>
-                <div>
-                  <h3 className="font-black text-gray-900 text-sm">{t.modalActionTitle}</h3>
-                  <p className="text-[10px] font-bold text-gray-500">
-                    Grievance #{selectedComplaint.id} • Ward {selectedComplaint.ward}
-                  </p>
-                </div>
-              </div>
+      {showConfirmModal && activeComplaintDetail && (
+        <div className="fixed inset-0 z-[10001] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-[360px] bg-white rounded-2xl p-5 shadow-2xl border border-slate-200 space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200">
+              <span className="material-symbols-outlined text-3xl">task_alt</span>
+            </div>
+
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                {lang === 'ta' ? 'தீர்வை உறுதி செய்க (Confirm)' : 'Confirm Resolution'}
+              </h3>
+              <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                {lang === 'ta'
+                  ? `புகார் #${activeComplaintDetail.id} வெற்றிகரமாக தீர்க்கப்பட்டுவிட்டதா? தீர்வு விவரம் மற்றும் புகைப்படம் குடிமகனுக்கு உடனடியாக அனுப்பப்படும்.`
+                  : `Are you sure grievance #${activeComplaintDetail.id} is resolved? The resolution photo and update will be sent immediately to the resident.`}
+              </p>
+            </div>
+
+            {/* Quick Preview of Action Notes */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-left text-xs text-slate-700">
+              <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">
+                {lang === 'ta' ? 'நடவடிக்கை குறிப்பு:' : 'Action Note:'}
+              </span>
+              <p className="line-clamp-2 italic font-medium">{actionNotes}</p>
+            </div>
+
+            {/* Confirm Actions */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setSelectedComplaint(null)}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer"
+                onClick={() => setShowConfirmModal(false)}
+                className="h-10 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs active:scale-95 transition cursor-pointer"
               >
-                <span className="material-symbols-outlined text-lg">close</span>
+                {lang === 'ta' ? 'ரத்து (Cancel)' : 'Cancel'}
               </button>
-            </div>
-
-            {/* Complaint Mini Summary */}
-            <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 text-xs space-y-1">
-              <div className="flex justify-between font-bold text-gray-800">
-                <span>{selectedComplaint.residentName}</span>
-                <span className="text-brand-red">{selectedComplaint.category}</span>
-              </div>
-              <p className="text-gray-600 italic text-[11px]">"{selectedComplaint.description}"</p>
-            </div>
-
-            {/* Resolution Form */}
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-black text-gray-800 mb-1">
-                  {t.modalActionNotesLabel}
-                </label>
-                <textarea
-                  rows="3"
-                  value={actionNotes}
-                  onChange={(e) => setActionNotes(e.target.value)}
-                  placeholder={t.modalActionNotesPlaceholder}
-                  className="w-full p-3 bg-white border border-gray-300 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent resize-none shadow-inner"
-                ></textarea>
-                {modalError && (
-                  <p className="text-[10px] text-brand-red font-bold mt-1">{modalError}</p>
-                )}
-              </div>
-
-              {/* Completion Proof Photo Picker */}
-              <div>
-                <label className="block text-xs font-black text-gray-800 mb-1">
-                  {t.modalProofPhotoLabel}
-                </label>
-
-                {!proofPhotoPreview ? (
-                  <label className="border-2 border-dashed border-amber-300 bg-amber-50/40 rounded-xl p-4 text-center cursor-pointer hover:bg-amber-100/40 transition flex flex-col items-center">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleProofImageChange}
-                    />
-                    <span className="material-symbols-outlined text-brand-red text-3xl">add_a_photo</span>
-                    <p className="text-xs font-bold text-gray-800 mt-1">{t.modalTapToUploadProof}</p>
-                    <p className="text-[10px] text-gray-500">Camera capture or gallery image (JPG/PNG)</p>
-                  </label>
-                ) : (
-                  <div className="relative rounded-xl overflow-hidden border border-amber-300">
-                    <img src={proofPhotoPreview} alt="Proof" className="w-full h-36 object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setProofPhotoPreview(null)}
-                      className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-700 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-sm">close</span>
-                    </button>
-                    <div className="absolute bottom-0 inset-x-0 bg-black/60 px-2 py-1 text-[10px] text-white flex justify-between">
-                      <span>Verified Upload Preview</span>
-                      <span>{proofFileSize}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Confirm Resolution Button */}
-            <div className="pt-2">
               <button
                 type="button"
-                onClick={handleConfirmResolution}
-                className="w-full py-3 bg-brand-red hover:bg-brand-redHover active:scale-98 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-red-500/25 flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                onClick={handleFinalConfirmResolution}
+                className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/30 active:scale-95 transition cursor-pointer flex items-center justify-center gap-1"
               >
-                <span className="material-symbols-outlined text-base">task_alt</span>
-                <span>{t.modalConfirmBtn}</span>
+                <span className="material-symbols-outlined text-[16px]">check</span>
+                <span>{lang === 'ta' ? 'ஆம், உறுதி (Yes, Confirm)' : 'Yes, Confirm'}</span>
               </button>
             </div>
           </div>
@@ -656,22 +777,26 @@ export const GrassrootsScreen = () => {
       )}
 
       {/* ============================================================== */}
-      {/* FIXED GRASSROOTS BOTTOM NAVIGATION                            */}
+      {/* FIXED GRASSROOTS BOTTOM NAVIGATION (3 TABS: NO DIRECTIVES)     */}
       {/* ============================================================== */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-amber-200/80 shadow-lg select-none">
-        <div className="flex items-center justify-around h-16 px-2 max-w-[420px] mx-auto">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-lg select-none">
+        <div className="flex items-center justify-around h-16 px-4 max-w-[420px] mx-auto">
           {/* 1. Complaints */}
           <button
             type="button"
-            onClick={() => setActiveTab('COMPLAINTS')}
+            onClick={() => { setActiveTab('COMPLAINTS'); setActiveComplaintDetail(null); }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all relative cursor-pointer ${
-              activeTab === 'COMPLAINTS' ? 'text-brand-red font-bold' : 'text-gray-500 font-semibold'
+              activeTab === 'COMPLAINTS' ? 'text-brand-red font-bold' : 'text-slate-500 font-medium'
             }`}
           >
-            <span className="material-symbols-outlined text-2xl">schedule</span>
-            <span className="text-[10px] tracking-tight mt-0.5">{t.navComplaints}</span>
+            <span className={`material-symbols-outlined text-2xl ${activeTab === 'COMPLAINTS' ? 'fill' : ''}`}>
+              schedule
+            </span>
+            <span className="text-[11px] tracking-tight mt-0.5">
+              {lang === 'ta' ? 'புகார்கள்' : 'Complaints'}
+            </span>
             {pendingCount > 0 && (
-              <span className="absolute top-2 right-6 bg-brand-red text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white">
+              <span className="absolute top-2.5 right-8 bg-brand-red text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white">
                 {pendingCount}
               </span>
             )}
@@ -680,37 +805,33 @@ export const GrassrootsScreen = () => {
           {/* 2. Residents */}
           <button
             type="button"
-            onClick={() => setActiveTab('RESIDENTS')}
+            onClick={() => { setActiveTab('RESIDENTS'); setActiveComplaintDetail(null); }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all cursor-pointer ${
-              activeTab === 'RESIDENTS' ? 'text-brand-red font-bold' : 'text-gray-500 font-semibold'
+              activeTab === 'RESIDENTS' ? 'text-brand-red font-bold' : 'text-slate-500 font-medium'
             }`}
           >
-            <span className="material-symbols-outlined text-2xl">group</span>
-            <span className="text-[10px] tracking-tight mt-0.5">{t.navResidents}</span>
+            <span className={`material-symbols-outlined text-2xl ${activeTab === 'RESIDENTS' ? 'fill' : ''}`}>
+              group
+            </span>
+            <span className="text-[11px] tracking-tight mt-0.5">
+              {lang === 'ta' ? 'குடிமக்கள்' : 'Residents'}
+            </span>
           </button>
 
-          {/* 3. Directives */}
+          {/* 3. Officer ID */}
           <button
             type="button"
-            onClick={() => setActiveTab('DIRECTIVES')}
+            onClick={() => { setActiveTab('OFFICER'); setActiveComplaintDetail(null); }}
             className={`flex flex-col items-center justify-center flex-1 h-full transition-all cursor-pointer ${
-              activeTab === 'DIRECTIVES' ? 'text-brand-red font-bold' : 'text-gray-500 font-semibold'
+              activeTab === 'OFFICER' ? 'text-brand-red font-bold' : 'text-slate-500 font-medium'
             }`}
           >
-            <span className="material-symbols-outlined text-2xl">description</span>
-            <span className="text-[10px] tracking-tight mt-0.5">{t.navDirectives}</span>
-          </button>
-
-          {/* 4. Officer ID */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('OFFICER')}
-            className={`flex flex-col items-center justify-center flex-1 h-full transition-all cursor-pointer ${
-              activeTab === 'OFFICER' ? 'text-brand-red font-bold' : 'text-gray-500 font-semibold'
-            }`}
-          >
-            <span className="material-symbols-outlined text-2xl">shield</span>
-            <span className="text-[10px] tracking-tight mt-0.5">{t.navOfficerId}</span>
+            <span className={`material-symbols-outlined text-2xl ${activeTab === 'OFFICER' ? 'fill' : ''}`}>
+              shield
+            </span>
+            <span className="text-[11px] tracking-tight mt-0.5">
+              {lang === 'ta' ? 'அதிகாரி அட்டை' : 'Officer ID'}
+            </span>
           </button>
         </div>
 

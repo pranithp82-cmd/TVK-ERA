@@ -52,7 +52,10 @@ export const AppProvider = ({ children }) => {
   const [complaints, setComplaints] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.COMPLAINTS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter(c => c.id !== 'GR-121-7104' && c.id !== 'GR-121-6540');
+      }
     } catch {
       // fallback
     }
@@ -204,7 +207,9 @@ export const AppProvider = ({ children }) => {
 
     // Check grassroots officers
     const matchedOfficer = officers.find(
-      o => o.username?.toLowerCase() === cleanUser || o.id?.toLowerCase() === cleanUser
+      o => o.username?.toLowerCase() === cleanUser || 
+           o.id?.toLowerCase() === cleanUser || 
+           (cleanUser.length >= 8 && o.phone?.replace(/[^0-9]/g, '').includes(cleanUser.replace(/[^0-9]/g, '')))
     );
 
     if (matchedOfficer) {
